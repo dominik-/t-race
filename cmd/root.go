@@ -9,17 +9,17 @@ import (
 )
 
 func init() {
-	cobra.OnInitialize(initConfig)
+	//cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tbench.yaml", "config file name (default is ./tbench.yaml)")
 	rootCmd.PersistentFlags().Int64VarP(&interval, "interval", "i", 100, "The interval between single ticks, by which each worker generates a trace. In milliseconds. Default: 100")
-	rootCmd.PersistentFlags().Int64VarP(&workers, "workers", "w", 10, "The number of workers to start. Defaults to 10.")
+	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 10, "The number of workers to start. Defaults to 10.")
 	rootCmd.PersistentFlags().StringVar(&resultDirPrefix, "resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
 }
 
 var (
 	cfgFile         string
 	interval        int64
-	workers         int64
+	workers         int
 	resultDirPrefix string
 )
 
@@ -27,9 +27,6 @@ var rootCmd = &cobra.Command{
 	Use:   "tracerbench",
 	Short: "Benchmarking tool for distributed tracing systems",
 	Long:  `So good it hurts`,
-	Run: func(cmd *cobra.Command, args []string) {
-		// Do Stuff Here
-	},
 }
 
 func Execute() {
@@ -39,6 +36,7 @@ func Execute() {
 	}
 }
 
+//currently unused
 func initConfig() {
 	// Don't forget to read config either from cfgFile or from home directory!
 	if cfgFile != "" {

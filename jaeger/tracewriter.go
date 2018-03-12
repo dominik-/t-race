@@ -1,4 +1,4 @@
-package main
+package jaeger
 
 import (
 	"io"
@@ -11,19 +11,20 @@ import (
 
 type TraceWriter interface {
 	WriteSpan(int)
-	WriteSpansUntilFinished() int
+	WriteSpansUntilFinished()
 }
 
 type RuntimeTraceWriter struct {
-	RuntimeInMinutes    time.Duration
-	DelayInMicroseconds time.Duration
-	TerminateSignal     <-chan bool
-	tracer              opentracing.Tracer
-	closer              io.Closer
-	Identifier          string
+	RuntimeInMinutes     time.Duration
+	DelayInMicroseconds  time.Duration
+	IntervalMilliseconds time.Duration
+	TerminateSignal      chan bool
+	tracer               opentracing.Tracer
+	closer               io.Closer
+	Identifier           string
 }
 
-func NewRuntimeTraceWriter(runtimeMinutes, delayMicroseconds int64, shutdown <-chan bool, id string) *RuntimeTraceWriter {
+func NewRuntimeTraceWriter(runtimeMinutes, delayMicroseconds, intervalMilliseconds int64, id string) *RuntimeTraceWriter {
 
 	transport, err := jaeger.NewUDPTransport("localhost:6831", 1500)
 
@@ -41,12 +42,13 @@ func NewRuntimeTraceWriter(runtimeMinutes, delayMicroseconds int64, shutdown <-c
 	jaegerTracer, jaegerCloser := jaeger.NewTracer("benchmarker", sampler, reporter)
 
 	return &RuntimeTraceWriter{
-		RuntimeInMinutes:    time.Duration(runtimeMinutes),
-		DelayInMicroseconds: time.Duration(delayMicroseconds),
-		TerminateSignal:     shutdown,
-		tracer:              jaegerTracer,
-		closer:              jaegerCloser,
-		Identifier:          id,
+		RuntimeInMinutes:     time.Duration(runtimeMinutes),
+		DelayInMicroseconds:  time.Duration(delayMicroseconds),
+		IntervalMilliseconds: time.Duration(intervalMilliseconds),
+		TerminateSignal:      make(chan bool, 1),
+		tracer:               jaegerTracer,
+		closer:               jaegerCloser,
+		Identifier:           id,
 	}
 }
 
@@ -57,9 +59,8 @@ func (t *RuntimeTraceWriter) WriteSpan(counter int) {
 	span.Finish()
 }
 
-func (t *RuntimeTraceWriter) WriteSpansUntilFinished() int {
-	//TODO make frequency adjustable
-	ticker := time.NewTicker(100 * time.Millisecond)
+func (t *RuntimeTraceWriter) WriteSpansUntilFinished() {
+	ticker := time.NewTicker(t.IntervalMilliseconds * time.Millisecond)
 	timer := time.After(t.RuntimeInMinutes * time.Minute)
 	counter := 0
 GenerateLoop:
