@@ -1,6 +1,7 @@
 package jaeger
 
 import (
+	"fmt"
 	"io"
 	"log"
 	"time"
@@ -22,6 +23,7 @@ type RuntimeTraceWriter struct {
 	tracer               opentracing.Tracer
 	closer               io.Closer
 	Identifier           string
+	TraceCounter         int64
 }
 
 func NewRuntimeTraceWriter(runtimeMinutes, delayMicroseconds, intervalMilliseconds int64, id string) *RuntimeTraceWriter {
@@ -52,7 +54,7 @@ func NewRuntimeTraceWriter(runtimeMinutes, delayMicroseconds, intervalMillisecon
 	}
 }
 
-func (t *RuntimeTraceWriter) WriteSpan(counter int) {
+func (t *RuntimeTraceWriter) WriteSpan(counter int64) {
 	span := t.tracer.StartSpan(t.Identifier)
 	span.SetTag("iteration", counter)
 	<-time.After(t.DelayInMicroseconds * time.Microsecond)
@@ -62,7 +64,6 @@ func (t *RuntimeTraceWriter) WriteSpan(counter int) {
 func (t *RuntimeTraceWriter) WriteSpansUntilFinished() {
 	ticker := time.NewTicker(t.IntervalMilliseconds * time.Millisecond)
 	timer := time.After(t.RuntimeInMinutes * time.Minute)
-	counter := 0
 GenerateLoop:
 	for {
 		select {
@@ -71,11 +72,11 @@ GenerateLoop:
 		case <-timer:
 			break GenerateLoop
 		case <-ticker.C:
-			counter++
-			t.WriteSpan(counter)
+			t.TraceCounter++
+			t.WriteSpan(t.TraceCounter)
 			break
 		}
 	}
 	t.closer.Close()
-	return counter
+	fmt.Printf("TraceWriter %s wrote %d traces.\n", t.Identifier, t.TraceCounter)
 }
