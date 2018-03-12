@@ -1,13 +1,13 @@
-#Tracer-Benchmarks
+# Tracer-Benchmarks
 
 Tool to benchmark tracing systems. Started with jaeger, based on https://github.com/jaegertracing/jaeger-performance
 
-##Requirements
+## Requirements
 
 * Docker
 * Golang 1.9+
 
-##Usage
+## Usage
 
 1. Clone this repo and cd into folder
 1. Start up jaeger using the Docker Compose file from https://github.com/jaegertracing/jaeger/tree/master/docker-compose:
