@@ -10,10 +10,10 @@ import (
 
 func init() {
 	//cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tbench.yaml", "config file name (default is ./tbench.yaml)")
-	rootCmd.PersistentFlags().Int64VarP(&interval, "interval", "i", 100, "The interval between single ticks, by which each worker generates a trace. In milliseconds. Default: 100")
-	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 10, "The number of workers to start. Defaults to 10.")
-	rootCmd.PersistentFlags().StringVar(&resultDirPrefix, "resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
+	//rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tbench.yaml", "config file name.")
+	rootCmd.PersistentFlags().Int64VarP(&interval, "interval", "i", 100, "The interval between single ticks, by which each worker generates a trace. In milliseconds")
+	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 10, "The number of workers to start")
+	//rootCmd.PersistentFlags().StringVar(&resultDirPrefix, "resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
 }
 
 var (
