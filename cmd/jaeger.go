@@ -1,71 +1,74 @@
 package cmd
 
 import (
-	"fmt"
+	"io"
 	"log"
-	"os"
-	"os/signal"
-	"syscall"
-	"time"
+
+	"github.com/opentracing/opentracing-go"
 
 	"github.com/spf13/cobra"
-	"gitlab.tu-berlin.de/dominik-ernst/tracer-benchmarks/jaeger"
+	jaeger "github.com/uber/jaeger-client-go"
 )
 
 var (
-	runtime int64
-	delay   int64
+	address      string
+	samplingRate float64
 )
 
 func init() {
 	rootCmd.AddCommand(jaegerCmd)
-	jaegerCmd.Flags().Int64VarP(&runtime, "runtime", "r", 1, "The runtime of each worker in minutes.")
-	jaegerCmd.Flags().Int64VarP(&delay, "delay", "d", 10000, "The delay that is used between opening and closing a span. In microseconds.")
+	jaegerCmd.Flags().StringVarP(&address, "address", "a", "localhost:6831", "The address of the jaeger agent to send traces to.")
+	jaegerCmd.Flags().Float64VarP(&samplingRate, "samplingRate", "s", 1.0, "Sampling rate for jaeger's probabilistic sampler.")
 }
 
 var jaegerCmd = &cobra.Command{
 	Use:   "jaeger",
 	Short: "Benchmark jaeger as SUT",
-	Long:  `Runs the tracing benchmark against jaeger as SUT, using jaeger-specific configuration (agents, etc.)`,
-	Run:   runJaegerBenchmark,
+	Long:  `Runs the tracing benchmark against jaeger as SUT, using jaeger-specific configuration`,
+	Run:   RunBenchmarkWithJaeger,
 }
 
-func runJaegerBenchmark(cmd *cobra.Command, args []string) {
-	workers, err := cmd.InheritedFlags().GetInt("workers")
-	interval, err := cmd.InheritedFlags().GetInt64("interval")
+type JaegerConnection struct {
+	probabilisticSamplingRate float64
+	targetAddress             string
+	jaegerClosers             []io.Closer
+}
+
+func RunBenchmarkWithJaeger(cmd *cobra.Command, args []string) {
+	ExecuteBenchmark(NewJaegerConnection())
+}
+
+func (conf *JaegerConnection) CreateConnection(identifier string) opentracing.Tracer {
+	//passing 0 makes jaeger use the max packet size, which seems to be recommended
+	transport, err := jaeger.NewUDPTransport(conf.targetAddress, 0)
+
 	if err != nil {
-		log.Fatalf("Couldnt find one of the mandatory param values. Should never happen! Error was: %v", err)
+		log.Fatalf("Couldnt initialize connection: %s", err)
 	}
 
-	writers := make([]*jaeger.RuntimeTraceWriter, 0)
+	reporter := jaeger.NewRemoteReporter(transport)
 
-	for i := 0; i < workers; i++ {
-		writer := jaeger.NewRuntimeTraceWriter(runtime, delay, interval, fmt.Sprintf("Jaeger-%d", i))
-		go writer.WriteSpansUntilFinished()
-		writers = append(writers, writer)
+	sampler, err := jaeger.NewProbabilisticSampler(conf.probabilisticSamplingRate)
+
+	if err != nil {
+		log.Fatalf("Couldnt initialize sampler: %s", err)
 	}
-	fmt.Printf("Started benchmark for jaeger with params: runtime: %d m, delay: %d µs, threads: %d, interval: %d ms\n", runtime, delay, workers, interval)
+	jaegerTracer, jaegerCloser := jaeger.NewTracer(identifier, sampler, reporter)
+	conf.jaegerClosers = append(conf.jaegerClosers, jaegerCloser)
+	return jaegerTracer
+}
 
-	//create a timer with runtime + 1 minute
-	timer := time.NewTimer((time.Duration(runtime) + 1) * time.Minute)
+func (conf *JaegerConnection) CloseConnections() {
+	for _, closer := range conf.jaegerClosers {
+		closer.Close()
+	}
+}
 
-	//hook to SIGINT/SIGTERM
-	sigTermRecv := make(chan os.Signal, 1)
-	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)
-
-	//we end if either SIGINT/SIGTERM is received or the time finishes
-	for {
-		select {
-		case <-timer.C:
-			os.Exit(0)
-		case <-sigTermRecv:
-			for _, w := range writers {
-				w.TerminateSignal <- true
-			}
-			//after signalling to shutdown to all writers, wait half a second, then exit.
-			<-time.NewTimer(500 * time.Millisecond).C
-			log.Fatal("User arborted.")
-		}
+func NewJaegerConnection() *JaegerConnection {
+	return &JaegerConnection{
+		probabilisticSamplingRate: samplingRate,
+		targetAddress:             address,
+		jaegerClosers:             make([]io.Closer, 0),
 	}
 
 }

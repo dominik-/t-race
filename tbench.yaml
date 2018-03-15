@@ -1,0 +1,6 @@
+tracer-benchmarks:
+  workers: 100
+  runtime: 2
+  delay: 10
+  interval: 10
+  workerPrefix: "Runner"
