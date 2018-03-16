@@ -66,6 +66,7 @@ func (b *Benchmark) RunBenchmark(conn OpentracingConnectionFactory) {
 				stopChan <- true
 			}
 			<-time.NewTimer(500 * time.Millisecond).C
+			conn.CloseConnections()
 			os.Exit(0)
 			break
 		case <-sigTermRecv:
@@ -74,6 +75,7 @@ func (b *Benchmark) RunBenchmark(conn OpentracingConnectionFactory) {
 			}
 			//after signalling to shutdown to all writers, wait half a second, then exit.
 			<-time.NewTimer(500 * time.Millisecond).C
+			conn.CloseConnections()
 			log.Fatal("User arborted.")
 			break
 		}
