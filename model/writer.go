@@ -9,7 +9,7 @@ import (
 //TraceWriter is a component which writes traces. It requires a connection to an OpenTracing compatible tracer and ResultReporters. It is expected to write traces until an external 'stop' signal is received.
 type TraceWriter interface {
 	//Set up the connection for this writer.
-	Initialize(OpentracingConnection, string)
+	Initialize(OpentracingConnectionFactory, string)
 	WriteSpan(TraceGenerator) *Result
 	//Write traces until an exit signal is received on the channel give as parameter and report its own exit back through the returned channel.
 	WriteSpansUntilExitSignal(TraceGenerator, chan bool, ...ResultReporter) chan bool
@@ -34,7 +34,7 @@ type IntervalTraceWriter struct {
 	results              []Result
 }
 
-func (w *IntervalTraceWriter) Initialize(conn OpentracingConnection, identifier string) {
+func (w *IntervalTraceWriter) Initialize(conn OpentracingConnectionFactory, identifier string) {
 	w.tracer = conn.CreateConnection(identifier)
 	w.identifier = identifier
 	w.results = make([]Result, 0)

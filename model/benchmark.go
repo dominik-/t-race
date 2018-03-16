@@ -38,7 +38,7 @@ func NewBenchmark(config *BenchmarkConfig, traceGen TraceGenerator, reporters ..
 	}
 }
 
-func (b *Benchmark) RunBenchmark(conn OpentracingConnection) {
+func (b *Benchmark) RunBenchmark(conn OpentracingConnectionFactory) {
 	//hook to SIGINT/SIGTERM
 	sigTermRecv := make(chan os.Signal, 1)
 	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)

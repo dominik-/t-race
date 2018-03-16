@@ -4,7 +4,7 @@ import (
 	"github.com/opentracing/opentracing-go"
 )
 
-type OpentracingConnection interface {
+type OpentracingConnectionFactory interface {
 	CreateConnection(identifier string) opentracing.Tracer
 	CloseConnections()
 }

@@ -28,17 +28,19 @@ var jaegerCmd = &cobra.Command{
 	Run:   RunBenchmarkWithJaeger,
 }
 
-type JaegerConnection struct {
+//JaegerConnectionFactory implements the OpenTracingConnectionFactory interface.
+type JaegerConnectionFactory struct {
 	probabilisticSamplingRate float64
 	targetAddress             string
 	jaegerClosers             []io.Closer
 }
 
+//RunBenchmarkWithJaeger simple wrapper around the root command, handing over the specific connection factory.
 func RunBenchmarkWithJaeger(cmd *cobra.Command, args []string) {
 	ExecuteBenchmark(NewJaegerConnection())
 }
 
-func (conf *JaegerConnection) CreateConnection(identifier string) opentracing.Tracer {
+func (conf *JaegerConnectionFactory) CreateConnection(identifier string) opentracing.Tracer {
 	//passing 0 makes jaeger use the max packet size, which seems to be recommended
 	transport, err := jaeger.NewUDPTransport(conf.targetAddress, 0)
 
@@ -58,14 +60,14 @@ func (conf *JaegerConnection) CreateConnection(identifier string) opentracing.Tr
 	return jaegerTracer
 }
 
-func (conf *JaegerConnection) CloseConnections() {
+func (conf *JaegerConnectionFactory) CloseConnections() {
 	for _, closer := range conf.jaegerClosers {
 		closer.Close()
 	}
 }
 
-func NewJaegerConnection() *JaegerConnection {
-	return &JaegerConnection{
+func NewJaegerConnection() *JaegerConnectionFactory {
+	return &JaegerConnectionFactory{
 		probabilisticSamplingRate: samplingRate,
 		targetAddress:             address,
 		jaegerClosers:             make([]io.Closer, 0),

@@ -55,7 +55,7 @@ func Execute() {
 	}
 }
 
-func ExecuteBenchmark(conn model.OpentracingConnection) {
+func ExecuteBenchmark(conn model.OpentracingConnectionFactory) {
 	config := &model.BenchmarkConfig{
 		Interval:        interval,
 		Runtime:         runtime,
