@@ -8,7 +8,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gitlab.tu-berlin.de/dominik-ernst/tracer-benchmarks/model"
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/model"
 )
 
 func init() {
