@@ -38,7 +38,7 @@ func NewBenchmark(config *BenchmarkConfig, traceGen TraceGenerator, reporters ..
 	}
 }
 
-func (b *Benchmark) RunBenchmark(conn OpentracingConnectionFactory) {
+func (b *Benchmark) RunBenchmark() {
 	//hook to SIGINT/SIGTERM
 	sigTermRecv := make(chan os.Signal, 1)
 	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)
@@ -51,7 +51,7 @@ func (b *Benchmark) RunBenchmark(conn OpentracingConnectionFactory) {
 	}
 
 	for i, writer := range b.Writers {
-		writer.Initialize(conn, fmt.Sprintf("%s-%d", b.Config.WorkerPrefix, i))
+		writer.Initialize(fmt.Sprintf("%s-%d", b.Config.WorkerPrefix, i))
 		doneChannels[i] = writer.WriteSpansUntilExitSignal(b.TraceGen, stopChannels[i])
 	}
 	fmt.Printf("Started benchmark. Config: %v\n", b.Config)
@@ -66,7 +66,6 @@ func (b *Benchmark) RunBenchmark(conn OpentracingConnectionFactory) {
 				stopChan <- true
 			}
 			<-time.NewTimer(500 * time.Millisecond).C
-			conn.CloseConnections()
 			os.Exit(0)
 			break
 		case <-sigTermRecv:
@@ -75,7 +74,6 @@ func (b *Benchmark) RunBenchmark(conn OpentracingConnectionFactory) {
 			}
 			//after signalling to shutdown to all writers, wait half a second, then exit.
 			<-time.NewTimer(500 * time.Millisecond).C
-			conn.CloseConnections()
 			log.Fatal("User arborted.")
 			break
 		}

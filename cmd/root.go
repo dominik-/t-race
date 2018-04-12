@@ -14,7 +14,7 @@ import (
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tbench", "Config file name. Can be YAML, JSON or TOML format.")
-	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 10, "The number of workers to start")
+	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 1, "The number of workers to start")
 	rootCmd.PersistentFlags().DurationVarP(&runtime, "runtime", "r", 1*time.Minute, "The runtime of each worker.")
 	rootCmd.PersistentFlags().DurationVarP(&delay, "delay", "d", 1000*time.Microsecond, "The delay that is used between opening and closing a span.")
 	rootCmd.PersistentFlags().DurationVarP(&interval, "interval", "i", 10*time.Millisecond, "The interval between single ticks, by which each worker generates a trace")
@@ -53,9 +53,10 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
+	ExecuteBenchmark()
 }
 
-func ExecuteBenchmark(conn model.OpentracingConnectionFactory) {
+func ExecuteBenchmark() {
 	config := &model.BenchmarkConfig{
 		Interval:        interval,
 		Runtime:         runtime,
@@ -64,13 +65,13 @@ func ExecuteBenchmark(conn model.OpentracingConnectionFactory) {
 		ResultDirPrefix: resultDirPrefix,
 	}
 	generator := &model.ConstantSpanGenerator{
-		Counter:     0,
-		Duration:    100,
-		ServiceName: "benchmark",
+		Counter:       0,
+		Delay:         100,
+		OperationName: "benchmark",
 	}
 
 	benchmark := model.NewBenchmark(config, generator)
-	benchmark.RunBenchmark(conn)
+	benchmark.RunBenchmark()
 
 }
 

@@ -14,7 +14,7 @@ var (
 )
 
 func init() {
-	rootCmd.AddCommand(zipkinCmd)
+	//rootCmd.AddCommand(zipkinCmd)
 	//TODO
 	zipkinCmd.Flags().StringVarP(&zipkinAddress, "address", "a", "http://localhost:9411/api/v1/spans", "The address of the jaeger agent to send traces to.")
 }
@@ -34,7 +34,7 @@ type ZipkinConnectionFactory struct {
 
 //RunBenchmarkWithZipkin simple wrapper around the root command, handing over the specific connection factory.
 func RunBenchmarkWithZipkin(cmd *cobra.Command, args []string) {
-	ExecuteBenchmark(NewZipkinConnection())
+	ExecuteBenchmark()
 }
 
 func NewZipkinConnection() *ZipkinConnectionFactory {
