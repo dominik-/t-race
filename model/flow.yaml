@@ -1,0 +1,22 @@
+service:
+  id: 'root'
+  deploymentKey: 'env01'
+  work: 100000000 #100ms
+  calltype: 0
+  successors:
+    - service:
+        id: 'svc01'
+        deploymentKey: 'env02'
+        work: 100000000
+        calltype: 0
+        successors:
+          - service:
+              id: 'svc04'
+              deploymentKey: 'env02'
+              work: 100000000
+              calltype: 0
+    - service:
+        id: 'svc02'
+        deploymentKey: 'env03'
+        work: 100000000
+        calltype: 1
