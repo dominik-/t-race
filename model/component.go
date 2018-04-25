@@ -1,16 +1,19 @@
 package model
 
 import (
+	"errors"
 	"log"
 	"os"
 	"sort"
+	"strings"
 
 	"gopkg.in/yaml.v2"
 )
 
+//Ccalltype enum alias.
 type calltype int
 
-//This basically is an enum. Calltype is actually an integer with two static representations.
+//This basically constitutes the enum. Calltype is an integer with two static representations.
 const (
 	SYNC calltype = iota
 	ASYNC
@@ -22,18 +25,31 @@ var calltypeNames = [...]string{
 	"ASYNC",
 }
 
+//String returns the static string-values of calltype.
 func (c calltype) String() string {
 	return calltypeNames[c]
 }
 
-//TODO: we need a custom unmarshalling for the calltype in YAML files in order to use SYNC/ASYNC instead of 0 and 1
-//func (c calltype) UnmarshalYAML(unmarshal func(interface{}) error) {
-//
-//}
+//UnmarshalYAML implements custom unmarshalling for the calltype in YAML files in order to use SYNC/ASYNC instead of 0 and 1.
+func (c calltype) UnmarshalYAML(unmarshal func(value interface{}) error) error {
+	var stringValue string
+	err := unmarshal(&stringValue)
+	if err != nil {
+		return err
+	}
+	if strings.Compare(strings.ToLower(stringValue), "sync") == 0 {
+		c = SYNC
+	} else if strings.Compare(strings.ToLower(stringValue), "async") == 0 {
+		c = ASYNC
+	} else {
+		return errors.New("couldnt parse calltype, unknown value. must be either 'SYNC' or 'ASYNC'")
+	}
+	return nil
+}
 
 //Services is a container for the root yaml element.
 type Services struct {
-	RootService Service `yaml:"service,flow"`
+	RootService *Service `yaml:"service,flow"`
 }
 
 //Service models a traced service, as it would be deployed by a user.
@@ -52,10 +68,21 @@ type Service struct {
 	EffectiveWork int `yaml:"-"`
 }
 
-func readFromYamlFile(file string) *Service {
+//ParseServiceDescription parses a YAML file containing a service / deployment description. Returns the root service or respective parsing errors, if the file was invalid.
+func ParseServiceDescription(yamlFile string) (*Service, error) {
+	root, err := readFromYamlFile(yamlFile)
+	if err != nil {
+		log.Printf("Could not parse service description, error was: %v", err)
+		return nil, err
+	}
+	calculateEffectiveWorkRecursively(root)
+	return root, nil
+}
+
+func readFromYamlFile(file string) (*Service, error) {
 	fileHandle, err := os.Open(file)
 	if err != nil {
-		log.Fatalf("YAML file with services could not be opened: %s, error was: %v\n", file, err)
+		return nil, err
 	}
 
 	decoder := yaml.NewDecoder(fileHandle)
@@ -63,10 +90,10 @@ func readFromYamlFile(file string) *Service {
 
 	err = decoder.Decode(&rootService)
 	if err != nil {
-		log.Fatalf("Service file could not be parsed: %v", err)
+		return nil, err
 	}
 
-	return &rootService.RootService
+	return rootService.RootService, nil
 }
 
 func calculateEffectiveWorkRecursively(s *Service) {
