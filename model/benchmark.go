@@ -7,6 +7,8 @@ import (
 	"os/signal"
 	"syscall"
 	"time"
+
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/proto"
 )
 
 type Benchmark struct {
@@ -35,6 +37,66 @@ func NewBenchmark(config *BenchmarkConfig, traceGen TraceGenerator, reporters ..
 		Reporters: reporters,
 		Config:    config,
 		Writers:   writers,
+	}
+}
+
+type Worker struct {
+	Reporters []ResultReporter
+	Writer    TraceWriter
+	Generator TraceGenerator
+}
+
+func (w *Worker) StartWorker(config *proto.WorkerConfiguration, stream proto.BenchmarkWorker_StartWorkerServer) error {
+	//need to do the run here, i.e. start Writer with generator and return results
+	//hook to SIGINT/SIGTERM
+	sigTermRecv := make(chan os.Signal, 1)
+	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)
+	stopChan := make(chan bool)
+	w.Writer.Initialize(config.WorkerId)
+	doneChannel := w.Writer.WriteSpansUntilExitSignal(w.Generator, stopChan, w.Reporters...)
+	log.Printf("Started worker. Config: %v\n", config)
+	//create a timer with runtime
+	timer := time.NewTimer(time.Duration(config.RuntimeSeconds) * time.Second)
+	ticker := time.NewTicker(10 * time.Second)
+	for {
+		select {
+		case <-timer.C:
+			stopChan <- true
+			limit := time.NewTimer(5 * time.Second)
+			for {
+				select {
+				case <-doneChannel:
+					log.Println("Benchmark ended after runtime.")
+					os.Exit(0)
+					break
+				case <-limit.C:
+					log.Fatalln("Benchmark shut down forcefully after runtime.")
+					break
+				}
+			}
+			break
+		case <-sigTermRecv:
+			stopChan <- true
+			limit := time.NewTimer(5 * time.Second)
+			for {
+				select {
+				case <-doneChannel:
+					log.Println("Benchmark ended by manual interrupt from user.")
+					os.Exit(0)
+					break
+				case <-limit.C:
+					log.Fatalln("Benchmark shut down forcefully after manual interrupt from user.")
+					break
+				}
+			}
+			break
+		case <-ticker.C:
+			for _, reporter := range w.Reporters {
+				//TODO refactor reporter interface and make it create a ResultPackage for grpc return-send
+				reporter.WriteResult()
+				//stream.Send()
+			}
+		}
 	}
 }
 
