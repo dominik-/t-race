@@ -1,21 +1,21 @@
-service:
+component:
   id: root
   deploymentKey: env01
   work: 100000000 #100ms
   calltype: SYNC
   successors:
-    - service:
+    - component:
       id: svc01
       deploymentKey: env02
       work: 100000000
       calltype: SYNC
       successors:
-        - service:
+        - component:
           id: svc04
           deploymentKey: env02
           work: 100000000
           calltype: SYNC
-    - service:
+    - component:
       id: svc02
       deploymentKey: env03
       work: 100000000

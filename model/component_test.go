@@ -6,36 +6,36 @@ import (
 )
 
 func TestReadFromYamlFile(t *testing.T) {
-	service, _ := readFromYamlFile("flow-test.yaml")
-	if strings.Compare(service.Identifier, "root") != 0 {
+	component, _ := readFromYamlFile("flow-test.yaml")
+	if strings.Compare(component.Identifier, "root") != 0 {
 		t.Fail()
 	}
-	t.Logf("root:%v", service)
-	t.Logf("Successor 0:%v", service.Successors[0])
-	t.Logf("Successor 1:%v", service.Successors[1])
-	if len(service.Successors) != 2 {
+	t.Logf("root:%v", component)
+	t.Logf("Successor 0:%v", component.Successors[0])
+	t.Logf("Successor 1:%v", component.Successors[1])
+	if len(component.Successors) != 2 {
 		t.Fail()
 	}
 }
 
 func TestCallTypeValuesParsing(t *testing.T) {
-	service, _ := readFromYamlFile("flow-test.yaml")
-	if service.CallType != SYNC {
+	component, _ := readFromYamlFile("flow-test.yaml")
+	if component.CallType != SYNC {
 		t.Fail()
 	}
-	if service.Successors[1].CallType != ASYNC {
+	if component.Successors[1].CallType != ASYNC {
 		t.Fail()
 	}
 }
 func TestCalculateEffectiveWork(t *testing.T) {
-	rootSvc1 := &Service{
+	rootSvc1 := &Component{
 		Work: 100,
-		Successors: []*Service{
-			&Service{
+		Successors: []*Component{
+			&Component{
 				Work:     200,
 				CallType: SYNC,
 			},
-			&Service{
+			&Component{
 				Work:     200,
 				CallType: ASYNC,
 			},
@@ -47,14 +47,14 @@ func TestCalculateEffectiveWork(t *testing.T) {
 	}
 }
 func TestCalculateEffectiveWorkAsyncOverride(t *testing.T) {
-	rootSvc2 := &Service{
+	rootSvc2 := &Component{
 		Work: 100,
-		Successors: []*Service{
-			&Service{
+		Successors: []*Component{
+			&Component{
 				Work:     200,
 				CallType: SYNC,
 			},
-			&Service{
+			&Component{
 				Work:     350,
 				CallType: ASYNC,
 			},

@@ -14,7 +14,7 @@ import (
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tbench", "Config file name. Can be YAML, JSON or TOML format.")
-	rootCmd.PersistentFlags().IntVarP(&workers, "workers", "w", 1, "The number of workers to start")
+	rootCmd.PersistentFlags().StringVar(&deploymentFile, "deployment", "dep", "Component descriptor file name. Must be a YAML file.")
 	rootCmd.PersistentFlags().DurationVarP(&runtime, "runtime", "r", 1*time.Minute, "The runtime of each worker.")
 	rootCmd.PersistentFlags().DurationVarP(&delay, "delay", "d", 1000*time.Microsecond, "The delay that is used between opening and closing a span.")
 	rootCmd.PersistentFlags().DurationVarP(&interval, "interval", "i", 10*time.Millisecond, "The interval between single ticks, by which each worker generates a trace")
@@ -30,8 +30,8 @@ func init() {
 
 var (
 	cfgFile         string
+	deploymentFile  string
 	interval        time.Duration
-	workers         int
 	runtime         time.Duration
 	delay           time.Duration
 	workerPrefix    string
@@ -60,7 +60,7 @@ func ExecuteBenchmark() {
 	config := &model.BenchmarkConfig{
 		Interval:        interval,
 		Runtime:         runtime,
-		Workers:         workers,
+		Workers:         1,
 		WorkerPrefix:    workerPrefix,
 		ResultDirPrefix: resultDirPrefix,
 	}
