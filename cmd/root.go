@@ -4,38 +4,37 @@ import (
 	"fmt"
 	"log"
 	"os"
-	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/model"
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/benchmark"
 )
 
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tbench", "Config file name. Can be YAML, JSON or TOML format.")
 	rootCmd.PersistentFlags().StringVar(&deploymentFile, "deployment", "dep", "Component descriptor file name. Must be a YAML file.")
-	rootCmd.PersistentFlags().DurationVarP(&runtime, "runtime", "r", 1*time.Minute, "The runtime of each worker.")
-	rootCmd.PersistentFlags().DurationVarP(&delay, "delay", "d", 1000*time.Microsecond, "The delay that is used between opening and closing a span.")
-	rootCmd.PersistentFlags().DurationVarP(&interval, "interval", "i", 10*time.Millisecond, "The interval between single ticks, by which each worker generates a trace")
+	rootCmd.PersistentFlags().Int64VarP(&runtime, "runtime", "r", 60, "The runtime of the benchmark in seconds.")
+	rootCmd.PersistentFlags().Int64VarP(&baseThroughput, "baselineTP", "tp", 100, "The target throughput per second, that arrives at the root component.")
 	rootCmd.PersistentFlags().StringVarP(&workerPrefix, "workerPrefix", "p", "Worker", "Prefix for worker threads writing traces.")
+	rootCmd.PersistentFlags().StringSliceVarP(&workers, "workers", "w", "", "Comma-separated list of worker addresses. For manual benchmark setups.")
 	//rootCmd.PersistentFlags().StringVar(&resultDirPrefix, "resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
 	//configuration by file is not yet working - need to overwrite cobra flag defaults with config file apparently??
 	bindToViper("workers", rootCmd)
 	bindToViper("runtime", rootCmd)
 	bindToViper("delay", rootCmd)
-	bindToViper("interval", rootCmd)
+	bindToViper("baseThroughput", rootCmd)
 	bindToViper("workerPrefix", rootCmd)
 }
 
 var (
 	cfgFile         string
 	deploymentFile  string
-	interval        time.Duration
-	runtime         time.Duration
-	delay           time.Duration
+	baseThroughput  int64
+	runtime         int64
 	workerPrefix    string
 	resultDirPrefix string
+	workers         []string
 )
 
 func bindToViper(flagName string, cmd *cobra.Command) {
@@ -45,7 +44,7 @@ func bindToViper(flagName string, cmd *cobra.Command) {
 var rootCmd = &cobra.Command{
 	Use:   "tracerbench",
 	Short: "Benchmarking tool for distributed tracing systems",
-	Long:  `So good it hurts`,
+	Long:  `Coordinator component for TRace, a benchmarking tool for distributed tracing systems.`,
 }
 
 func Execute() {
@@ -57,22 +56,12 @@ func Execute() {
 }
 
 func ExecuteBenchmark() {
-	config := &model.BenchmarkConfig{
-		Interval:        interval,
+	config := &benchmark.BenchmarkConfig{
+		Throughput:      baseThroughput,
 		Runtime:         runtime,
-		Workers:         1,
 		WorkerPrefix:    workerPrefix,
 		ResultDirPrefix: resultDirPrefix,
 	}
-	generator := &model.ConstantSpanGenerator{
-		Counter:       0,
-		Delay:         100,
-		OperationName: "benchmark",
-	}
-
-	benchmark := model.NewBenchmark(config, generator)
-	benchmark.RunBenchmark()
-
 }
 
 func initConfig() {

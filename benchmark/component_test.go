@@ -1,4 +1,4 @@
-package model
+package benchmark
 
 import (
 	"strings"

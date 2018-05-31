@@ -1,4 +1,4 @@
-package model
+package benchmark
 
 import (
 	"errors"
@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/proto"
 	"gopkg.in/yaml.v2"
 )
 
@@ -118,4 +119,38 @@ func calculateEffectiveWorkRecursively(c *Component) {
 			c.EffectiveWork = asyncSuccessorWork[len(asyncSuccessorWork)-1]
 		}
 	}
+}
+
+//AddComponentsToSlice is a helper method which recursively addes all components to a slice.
+func (c *Component) AddComponentsToSlice(list []*Component) []*Component {
+	list = append(list, c)
+	if len(c.Successors) > 0 {
+		for _, s := range c.Successors {
+			s.AddComponentsToSlice(list)
+		}
+	}
+	return list
+}
+
+//AddComponentsToEnvMap is a helper function which recursively traverses the components and adds them to a map grouped by deploymentKeys of the components. The deploymentKey is an identifier for a deployment environment where multiple Components might be co-located.
+func (c *Component) AddComponentsToEnvMap(envMap map[string][]*Component) map[string][]*Component {
+	if _, exists := envMap[c.DeploymentKey]; !exists {
+		envMap[c.DeploymentKey] = make([]*Component, 0)
+	}
+	envMap[c.DeploymentKey] = append(envMap[c.DeploymentKey], c)
+	if len(c.Successors) > 0 {
+		for _, s := range c.Successors {
+			s.AddComponentsToEnvMap(envMap)
+		}
+	}
+	return envMap
+}
+
+//TODO: so far no tags are written oder in the model - implement a simple generator for a number of tags with randomized key/value?
+func (c *Component) ToSpanModel() *proto.SpanModel {
+	return &proto.SpanModel{
+		Delay:         int64(c.EffectiveWork),
+		OperationName: c.Identifier,
+	}
+	return nil
 }
