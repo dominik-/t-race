@@ -13,11 +13,11 @@ import (
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "tbench", "Config file name. Can be YAML, JSON or TOML format.")
-	rootCmd.PersistentFlags().StringVar(&deploymentFile, "deployment", "dep", "Component descriptor file name. Must be a YAML file.")
+	rootCmd.PersistentFlags().StringVarP(&deploymentFile, "deployment", "d", "components.yaml", "Component descriptor file name. Must be a YAML file.")
 	rootCmd.PersistentFlags().Int64VarP(&runtime, "runtime", "r", 60, "The runtime of the benchmark in seconds.")
-	rootCmd.PersistentFlags().Int64VarP(&baseThroughput, "baselineTP", "tp", 100, "The target throughput per second, that arrives at the root component.")
+	rootCmd.PersistentFlags().Int64VarP(&baseThroughput, "baselineTP", "t", 100, "The target throughput per second, that arrives at the root component.")
 	rootCmd.PersistentFlags().StringVarP(&workerPrefix, "workerPrefix", "p", "Worker", "Prefix for worker threads writing traces.")
-	rootCmd.PersistentFlags().StringSliceVarP(&workers, "workers", "w", "", "Comma-separated list of worker addresses. For manual benchmark setups.")
+	rootCmd.PersistentFlags().StringSliceVarP(&workers, "workers", "w", []string{""}, "Comma-separated list of worker addresses. For manual benchmark setups.")
 	//rootCmd.PersistentFlags().StringVar(&resultDirPrefix, "resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
 	//configuration by file is not yet working - need to overwrite cobra flag defaults with config file apparently??
 	bindToViper("workers", rootCmd)
@@ -62,6 +62,13 @@ func ExecuteBenchmark() {
 		WorkerPrefix:    workerPrefix,
 		ResultDirPrefix: resultDirPrefix,
 	}
+	component, err := benchmark.ParseComponentDescription(deploymentFile)
+	if err != nil {
+		log.Fatalf("Parsing of component deployment description failed.")
+	}
+	workers := benchmark.AllocateWorkers(component, workers)
+	benchmark.SetupConnections(workers)
+	benchmark.StartBenchmark(workers, config)
 }
 
 func initConfig() {

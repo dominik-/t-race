@@ -152,5 +152,4 @@ func (c *Component) ToSpanModel() *proto.SpanModel {
 		Delay:         int64(c.EffectiveWork),
 		OperationName: c.Identifier,
 	}
-	return nil
 }

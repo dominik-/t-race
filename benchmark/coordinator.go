@@ -1,8 +1,11 @@
 package benchmark
 
 import (
+	"bufio"
 	"context"
 	"log"
+	"os"
+	"time"
 
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/proto"
 	"google.golang.org/grpc"
@@ -43,7 +46,7 @@ func SetupConnections(workers []*Worker) {
 	}
 }
 
-func StartBenchmark(workers []*Worker, benchmarkConf BenchmarkConfig) {
+func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 	//start benchmark on all workers and keep receiving their results
 	//need to fork out into separate threads and write results to files/database
 	for _, w := range workers {
@@ -59,6 +62,32 @@ func StartBenchmark(workers []*Worker, benchmarkConf BenchmarkConfig) {
 			log.Printf("Couldn't call worker %v, error was : %v", w, err)
 		}
 		w.ResultStream = clientStream
+		go WriteResults(w, benchmarkConf)
+	}
+
+}
+
+func WriteResults(worker *Worker, benchmark *BenchmarkConfig) {
+	fileHandle, err := os.Create(benchmark.ResultDirPrefix + "/" + worker.Component.Identifier)
+	if err != nil {
+		log.Printf("Couldn't create output file, reason: %v", err)
+	}
+	writer := bufio.NewWriter(fileHandle)
+	ticker := time.NewTicker(5 * time.Second)
+	for {
+		select {
+		case <-ticker.C:
+			resultPackage, err := worker.ResultStream.Recv()
+			if err != nil {
+				log.Printf("Error receiving result: %v", err)
+			}
+			if resultPackage != nil {
+				for _, res := range resultPackage.GetResults() {
+					//TODO need different serialization here - write to CSV? long-term there should be a interface for arbitrary storage
+					writer.WriteString(res.String())
+				}
+			}
+		}
 	}
 
 }
