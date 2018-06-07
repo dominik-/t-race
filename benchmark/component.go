@@ -121,12 +121,13 @@ func calculateEffectiveWorkRecursively(c *Component) {
 	}
 }
 
-//AddComponentsToSlice is a helper method which recursively addes all components to a slice.
-func (c *Component) AddComponentsToSlice(list []*Component) []*Component {
+//AddComponentsToSlice is a helper method which recursively adds all components to a slice.
+func AddComponentsToSlice(list []*Component, c *Component) []*Component {
 	list = append(list, c)
+	log.Printf("Current last component: %v", list[len(list)-1])
 	if len(c.Successors) > 0 {
 		for _, s := range c.Successors {
-			s.AddComponentsToSlice(list)
+			list = AddComponentsToSlice(list, s)
 		}
 	}
 	return list

@@ -63,6 +63,7 @@ func ExecuteBenchmark() {
 		ResultDirPrefix: resultDirPrefix,
 	}
 	component, err := benchmark.ParseComponentDescription(deploymentFile)
+	log.Printf("Root component is: %v", component)
 	if err != nil {
 		log.Fatalf("Parsing of component deployment description failed.")
 	}

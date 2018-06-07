@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+    jaeger-worker:
+      image: t-race/worker
+      ports:
+        - "7887"
+      environment:
+        - WORKER_WRITER_ADDRESS=jaeger-writer:5656
+      depends_on:
+        - jaeger-writer
+    jaeger-writer:
+      image: t-race/writer
+      environment:
+        - JAEGERWRITER_AGENT=localhost:6831

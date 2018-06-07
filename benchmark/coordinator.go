@@ -23,7 +23,8 @@ func AllocateWorkers(rootComponent *Component, adresses []string) []*Worker {
 	//traverse component tree
 	componentsInOrder := make([]*Component, 0)
 	workers := make([]*Worker, len(adresses))
-	rootComponent.AddComponentsToSlice(componentsInOrder)
+	componentsInOrder = AddComponentsToSlice(componentsInOrder, rootComponent)
+	log.Printf("We have %d components and %d workers.", len(componentsInOrder), len(workers))
 	if len(componentsInOrder) != len(adresses) {
 		log.Fatal("Not enough workers for components.")
 	}
@@ -38,7 +39,7 @@ func AllocateWorkers(rootComponent *Component, adresses []string) []*Worker {
 
 func SetupConnections(workers []*Worker) {
 	for _, w := range workers {
-		conn, err := grpc.Dial(w.Address)
+		conn, err := grpc.Dial(w.Address, grpc.WithInsecure())
 		if err != nil {
 			log.Printf("Couldnt connect to worker: %v, error was: %v", w, err)
 		}
