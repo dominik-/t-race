@@ -6,10 +6,32 @@ services:
       ports:
         - "7887"
       environment:
-        - WORKER_WRITER_ADDRESS=jaeger-writer:5656
+        - WORKER_WRITERADDRESS=jaeger-writer:5656
+      networks: 
+        - tracer-worker
       depends_on:
         - jaeger-writer
     jaeger-writer:
-      image: t-race/writer
+      image: t-race/jaeger-writer
       environment:
-        - JAEGERWRITER_AGENT=localhost:6831
+        - JAEGERWRITER_AGENT=jaeger-agent:6831
+      networks: 
+        - tracer-worker
+      depends_on:
+        - jaeger-agent
+    jaeger-agent:
+      image: jaegertracing/jaeger-agent
+      command: ["/go/bin/agent-linux", "--collector.host-port=jaeger-collector:14267"]
+      networks: 
+        - tracer-worker
+        - tracerbenchmarks_tracer-backend
+      ports:
+        - "5775:5775/udp"
+        - "6831:6831/udp"
+        - "6832:6832/udp"
+        - "5778:5778"
+      restart: on-failure
+networks:
+  tracer-worker:
+  tracerbenchmarks_tracer-backend:
+    external: true
