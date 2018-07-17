@@ -21,7 +21,7 @@ services:
         - jaeger-agent
     jaeger-agent:
       image: jaegertracing/jaeger-agent
-      command: ["/go/bin/agent-linux", "--collector.host-port=jaeger-collector:14267"]
+      command: ["--collector.host-port=jaeger-collector:14267"]
       networks: 
         - tracer-worker
         - tracerbenchmarks_tracer-backend

@@ -3,7 +3,7 @@ version: '3'
 services:
     jaeger-collector:
       image: jaegertracing/jaeger-collector
-      command: ["/go/bin/collector-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
+      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
       networks: 
         - tracer-backend
       ports:
@@ -17,7 +17,7 @@ services:
 
     jaeger-query:
       image: jaegertracing/jaeger-query
-      command: ["/go/bin/query-linux", "--query.static-files=/go/jaeger-ui/", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
       networks: 
         - tracer-backend
       ports:
