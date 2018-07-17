@@ -96,6 +96,8 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 	for {
 		select {
 		case <-ticker.C:
+			//Problem: ticker is pretty meaningless, since Recv() blocks until a result is received.
+			//This means that the interval of receiving results here is strongly correlated to the interval with which results are sent to the stream.
 			resultPackage, err := worker.ResultStream.Recv()
 			if err != nil {
 				log.Printf("Error receiving result: %v", err)
@@ -103,7 +105,7 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 			log.Printf("Received result package. Size: %d", len(resultPackage.GetResults()))
 			if resultPackage != nil {
 				for _, res := range resultPackage.GetResults() {
-					//TODO need different serialization here - write to CSV? long-term there should be a interface for arbitrary storage
+					//TODO need different serialization here - write to CSV? long-term there should be an interface for arbitrary storage
 					writer.WriteString(res.String())
 				}
 			}
