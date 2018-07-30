@@ -1,10 +1,11 @@
 package benchmark
 
 import (
-	"bufio"
 	"context"
+	"encoding/csv"
 	"log"
 	"os"
+	"strconv"
 	"time"
 
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/proto"
@@ -91,7 +92,7 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 	if err != nil {
 		log.Printf("Couldn't create output file, reason: %v", err)
 	}
-	writer := bufio.NewWriter(fileHandle)
+	writer := csv.NewWriter(fileHandle)
 	ticker := time.NewTicker(5 * time.Second)
 	for {
 		select {
@@ -105,11 +106,13 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 			log.Printf("Received result package. Size: %d", len(resultPackage.GetResults()))
 			if resultPackage != nil {
 				for _, res := range resultPackage.GetResults() {
-					//TODO need different serialization here - write to CSV? long-term there should be an interface for arbitrary storage
-					writer.WriteString(res.String())
+					//TODO need different serialization here - we currently write to CSV, long-term there should be an interface for arbitrary storage
+					resAsStringArray := []string{res.GetOperationName(), strconv.FormatInt(res.GetSpanId(), 10), strconv.FormatInt(res.GetLatency(), 10)}
+					writer.Write(resAsStringArray)
 				}
 			}
 		case <-finishedChannel:
+			writer.Flush()
 			fileHandle.Close()
 			return
 		}
