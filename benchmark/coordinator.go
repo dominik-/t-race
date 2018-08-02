@@ -8,7 +8,7 @@ import (
 	"strconv"
 	"time"
 
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/proto"
+	api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
 	"google.golang.org/grpc"
 )
 
@@ -16,7 +16,7 @@ type Worker struct {
 	Component    *Component
 	Address      string
 	Connection   *grpc.ClientConn
-	ResultStream proto.BenchmarkWorker_StartWorkerClient
+	ResultStream api.BenchmarkWorker_StartWorkerClient
 }
 
 func AllocateWorkers(rootComponent *Component, adresses []string) []*Worker {
@@ -58,10 +58,11 @@ func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 	}
 	finishedChannels := make([]chan bool, 0)
 	for _, w := range workers {
-		clientStub := proto.NewBenchmarkWorkerClient(w.Connection)
-		spanSequence := make([]*proto.SpanModel, 1)
+		clientStub := api.NewBenchmarkWorkerClient(w.Connection)
+		spanSequence := make([]*api.SpanModel, 1)
 		spanSequence[0] = w.Component.ToSpanModel()
-		clientStream, err := clientStub.StartWorker(context.Background(), &proto.WorkerConfiguration{
+		clientStream, err := clientStub.StartWorker(context.Background(), &api.WorkerConfiguration{
+			WorkerId:         w.Component.Identifier,
 			EnvironmentId:    w.Component.DeploymentKey,
 			RuntimeSeconds:   benchmarkConf.Runtime,
 			SpanSequence:     spanSequence,
@@ -107,8 +108,8 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 			if resultPackage != nil {
 				for _, res := range resultPackage.GetResults() {
 					//TODO need different serialization here - we currently write to CSV, long-term there should be an interface for arbitrary storage
-					resAsStringArray := []string{res.GetOperationName(), strconv.FormatInt(res.GetSpanId(), 10), strconv.FormatInt(res.GetLatency(), 10)}
-					writer.Write(resAsStringArray)
+					resArray := []int64{res.SpanId, res.SpanCreationBeginTime, res.SpanCreationEndTime, res.SpanFinishBeginTime, res.SpanFinishEndTime}
+					writer.Write(intToStringArray(resArray))
 				}
 			}
 		case <-finishedChannel:
@@ -117,5 +118,12 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 			return
 		}
 	}
+}
 
+func intToStringArray(array []int64) []string {
+	res := make([]string, len(array))
+	for idx, val := range array {
+		res[idx] = strconv.FormatInt(val, 10)
+	}
+	return res
 }

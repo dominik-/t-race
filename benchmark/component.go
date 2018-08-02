@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/proto"
+	api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
 	"gopkg.in/yaml.v2"
 )
 
@@ -148,8 +148,8 @@ func (c *Component) AddComponentsToEnvMap(envMap map[string][]*Component) map[st
 }
 
 //TODO: so far no tags are written oder in the model - implement a simple generator for a number of tags with randomized key/value?
-func (c *Component) ToSpanModel() *proto.SpanModel {
-	return &proto.SpanModel{
+func (c *Component) ToSpanModel() *api.SpanModel {
+	return &api.SpanModel{
 		Delay:         int64(c.EffectiveWork),
 		OperationName: c.Identifier,
 	}
