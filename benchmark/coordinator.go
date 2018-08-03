@@ -3,6 +3,7 @@ package benchmark
 import (
 	"context"
 	"encoding/csv"
+	"io"
 	"log"
 	"os"
 	"strconv"
@@ -78,8 +79,9 @@ func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 	}
 	//wait until benchmark is over, plus six seconds (results stream poll interval + 1)
 	<-time.NewTimer(time.Second * time.Duration(benchmarkConf.Runtime)).C
-	log.Println("Finishing writing benchmark results...")
-	<-time.NewTimer(6 * time.Second).C
+	toleranceDuration := 5 * time.Second
+	log.Printf("Runtime finished. Waiting %v for final benchmark results...", toleranceDuration)
+	<-time.NewTimer(5 * time.Second).C
 	for _, channel := range finishedChannels {
 		channel <- true
 	}
@@ -94,6 +96,7 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 		log.Printf("Couldn't create output file, reason: %v", err)
 	}
 	writer := csv.NewWriter(fileHandle)
+	writer.Write([]string{"SpanId", "SpanCreationBeginTime", "SpanCreationEndTime", "SpanFinishBeginTime", "SpanFinishEndTime"})
 	ticker := time.NewTicker(5 * time.Second)
 	for {
 		select {
@@ -102,6 +105,11 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 			//This means that the interval of receiving results here is strongly correlated to the interval with which results are sent to the stream.
 			resultPackage, err := worker.ResultStream.Recv()
 			if err != nil {
+				if err == io.EOF {
+					writer.Flush()
+					fileHandle.Close()
+					return
+				}
 				log.Printf("Error receiving result: %v", err)
 			}
 			log.Printf("Received result package. Size: %d", len(resultPackage.GetResults()))
