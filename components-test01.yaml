@@ -6,11 +6,11 @@ component:
   successors:
     - component:
       id: svc01
-      deploymentKey: env02
+      deploymentKey: env01
       work: 100000000
       calltype: SYNC
     - component:
       id: svc02
-      deploymentKey: env03
+      deploymentKey: env01
       work: 50000000
       calltype: ASYNC

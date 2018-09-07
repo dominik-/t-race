@@ -1,0 +1,34 @@
+kind: ConfigMap
+apiVersion: v1
+metadata:
+  name: traefik-https-cfg
+  namespace: kube-system
+data:
+  traefik.toml: |
+    defaultEntryPoints = ["https"]
+
+    [entryPoints]
+      [entryPoints.https]
+      address = ":4443"
+        [entryPoints.https.tls]
+        # For secure connection on frontend.local
+        [[entryPoints.https.tls.certificates]]
+        certFile = "./frontend.cert"
+        keyFile  = "./frontend.key"
+
+    [api]
+
+    [file]
+
+    [backends]
+      [backends.backend1]
+        [backends.backend1.servers.server1]
+        # Access on backend with HTTPS
+        url = "https://backend.local:8080"
+
+
+    [frontends]
+      [frontends.frontend1]
+      backend = "backend1"
+        [frontends.frontend1.routes.test_1]
+        rule = "Host:frontend.local"

@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: t-bench-configuration
+  labels:
+    app: t-bench
+    t-bench: configuration
+data:
+  worker: |
+    workerPrefix: "Worker"
+    port: 7887
+    writerAddress: "localhost:5656"
+  writer: |
+    agent: "agent:6831"
+    serviceName: "jaeger-writer"
+    samplingRate: "1.0"

@@ -1,0 +1,65 @@
+apiVersion: v1
+kind: List
+items:
+- apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    name: worker-writer-jaeger
+    labels:
+      app: t-race
+      t-race: worker-writer
+  spec:
+    replicas: 1
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          app: t-race
+          t-race: worker
+      spec:
+        containers:
+        - image: t-race/writer-jaeger:0.2.0
+          imagePullPolicy: Never
+          name: writer
+          args: ["--config=/conf/writer.yaml"]
+          volumeMounts:
+          - name: writer-worker-config-volume
+            mountPath: /conf
+          ports:
+          - containerPort: 5656
+            protocol: TCP
+        - image: t-race/worker:0.2.0
+          imagePullPolicy: Never
+          name: worker
+          args: ["--config=/conf/worker.yaml"]
+          volumeMounts:
+          - name: writer-worker-config-volume
+            mountPath: /conf
+          ports:
+          - containerPort: 7887
+            protocol: TCP
+        volumes:
+          - configMap:
+              name: t-bench-configuration
+              items:
+                - key: writer
+                  path: writer.yaml
+                - key: worker
+                  path: worker.yaml
+            name: writer-worker-config-volume
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: worker-service
+    labels:
+      app: t-race
+      name: t-race-worker-service
+      t-race: worker-service
+  spec:
+    ports:
+    - name: grpc
+      port: 7887
+    type: NodePort
+    selector:
+      t-race: worker-writer

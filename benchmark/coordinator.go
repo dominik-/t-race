@@ -2,8 +2,10 @@ package benchmark
 
 import (
 	"context"
+	"crypto/x509"
 	"encoding/csv"
 	"io"
+	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -11,6 +13,7 @@ import (
 
 	api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 )
 
 type Worker struct {
@@ -26,7 +29,10 @@ func AllocateWorkers(rootComponent *Component, adresses []string) []*Worker {
 	componentsInOrder := make([]*Component, 0)
 	workers := make([]*Worker, len(adresses))
 	componentsInOrder = AddComponentsToSlice(componentsInOrder, rootComponent)
-	log.Printf("We have %d components and %d workers.", len(componentsInOrder), len(workers))
+	envComponentsMap := createEnvComponentsMap(componentsInOrder)
+
+	log.Printf("We have %d components, %d workers and %d env-keys", len(componentsInOrder), len(workers), len(envComponentsMap))
+
 	if len(componentsInOrder) != len(adresses) {
 		log.Fatal("Not enough workers for components.")
 	}
@@ -40,8 +46,18 @@ func AllocateWorkers(rootComponent *Component, adresses []string) []*Worker {
 }
 
 func SetupConnections(workers []*Worker) {
+	// Read cert file
+	FrontendCert, _ := ioutil.ReadFile("./certs/frontend.cert")
+
+	// Create CertPool
+	roots := x509.NewCertPool()
+	roots.AppendCertsFromPEM(FrontendCert)
+
+	// Create credentials
+	credsClient := credentials.NewClientTLSFromCert(roots, "")
+	// Establish connections to all workers. TLS-encrypted with static certificate
 	for _, w := range workers {
-		conn, err := grpc.Dial(w.Address, grpc.WithInsecure())
+		conn, err := grpc.Dial(w.Address, grpc.WithTransportCredentials(credsClient))
 		if err != nil {
 			log.Printf("Couldnt connect to worker: %v, error was: %v", w, err)
 		}
@@ -134,4 +150,17 @@ func intToStringArray(array []int64) []string {
 		res[idx] = strconv.FormatInt(val, 10)
 	}
 	return res
+}
+
+func createEnvComponentsMap(components []*Component) map[string][]*Component {
+	result := make(map[string][]*Component)
+	for _, c := range components {
+		list, exists := result[c.DeploymentKey]
+		if !exists {
+			list = make([]*Component, 0)
+			result[c.DeploymentKey] = list
+		}
+		list = append(list, c)
+	}
+	return result
 }
