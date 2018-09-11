@@ -5,16 +5,20 @@ metadata:
   namespace: kube-system
 data:
   traefik.toml: |
-    defaultEntryPoints = ["https"]
+    defaultEntryPoints = ["http", "https"]
+    insecureSkipVerify = true
+    #rootCAs = [ "./backend/tls.crt" ]
 
     [entryPoints]
+      [entryPoints.http]
+      address = ":80"
       [entryPoints.https]
-      address = ":4443"
+      address = ":443"
         [entryPoints.https.tls]
         # For secure connection on frontend.local
-        [[entryPoints.https.tls.certificates]]
-        certFile = "./frontend.cert"
-        keyFile  = "./frontend.key"
+          [[entryPoints.https.tls.certificates]]
+          certFile = "/frontend/tls.crt"
+          keyFile  = "/frontend/tls.key"
 
     [api]
 
@@ -24,7 +28,7 @@ data:
       [backends.backend1]
         [backends.backend1.servers.server1]
         # Access on backend with HTTPS
-        url = "https://backend.local:8080"
+        url = "https://backend.local:7878"
 
 
     [frontends]

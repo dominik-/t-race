@@ -5,7 +5,7 @@ metadata:
   name: traefik-ingress-controller
   namespace: kube-system
 ---
-kind: DaemonSet
+kind: Deployment
 apiVersion: extensions/v1beta1
 metadata:
   name: traefik-ingress-controller
@@ -13,6 +13,10 @@ metadata:
   labels:
     k8s-app: traefik-ingress-lb
 spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      k8s-app: traefik-ingress-lb
   template:
     metadata:
       labels:
@@ -25,20 +29,30 @@ spec:
       - image: traefik
         name: traefik-ingress-lb
         ports:
-        - name: web
+        - name: http
           containerPort: 80
+        - name: https
+          containerPort: 443
         - name: admin
           containerPort: 8080
-        securityContext:
-          capabilities:
-            drop:
-            - ALL
-            add:
-            - NET_BIND_SERVICE
         args:
         - --api
         - --kubernetes
         - --logLevel=INFO
+        volumeMounts:
+          - name: traefik-frontend-volume
+            mountPath: /frontend
+            readOnly: true
+          - name: traefik-backend-volume
+            mountPath: /backend
+            readOnly: true
+      volumes:
+          - name: traefik-frontend-volume
+            secret:
+              secretName: frontend-secret
+          - name: traefik-backend-volume
+            secret:
+              secretName: backend-secret
 ---
 kind: Service
 apiVersion: v1
@@ -51,26 +65,11 @@ spec:
   ports:
     - protocol: TCP
       port: 80
-      targetPort: web
       name: web
     - protocol: TCP
+      port: 443
+      name: web-tls
+    - protocol: TCP
       port: 8080
-      targetPort: admin
       name: admin
   type: NodePort
----
-apiVersion: extensions/v1beta1
-kind: Ingress
-metadata:
-  name: traefik-ui-ingress
-  namespace: kube-system
-  annotations:
-    kubernetes.io/ingress.class: traefik
-spec:
-  rules:
-  - host: traefik-ui.minikube
-    http:
-      paths:
-      - backend:
-          serviceName: traefik-ingress-service
-          servicePort: 8080

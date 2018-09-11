@@ -2,10 +2,9 @@ package benchmark
 
 import (
 	"context"
-	"crypto/x509"
+	"crypto/tls"
 	"encoding/csv"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 	"strconv"
@@ -46,18 +45,13 @@ func AllocateWorkers(rootComponent *Component, adresses []string) []*Worker {
 }
 
 func SetupConnections(workers []*Worker) {
-	// Read cert file
-	FrontendCert, _ := ioutil.ReadFile("./certs/frontend.cert")
-
-	// Create CertPool
-	roots := x509.NewCertPool()
-	roots.AppendCertsFromPEM(FrontendCert)
-
-	// Create credentials
-	credsClient := credentials.NewClientTLSFromCert(roots, "")
-	// Establish connections to all workers. TLS-encrypted with static certificate
+	// Create credentials that skip root CA verification
+	creds := credentials.NewTLS(&tls.Config{
+		InsecureSkipVerify: true,
+	})
+	// Establish connections to all workers.
 	for _, w := range workers {
-		conn, err := grpc.Dial(w.Address, grpc.WithTransportCredentials(credsClient))
+		conn, err := grpc.Dial(w.Address, grpc.WithTransportCredentials(creds))
 		if err != nil {
 			log.Printf("Couldnt connect to worker: %v, error was: %v", w, err)
 		}

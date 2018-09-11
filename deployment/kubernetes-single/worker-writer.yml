@@ -36,6 +36,9 @@ items:
           volumeMounts:
           - name: writer-worker-config-volume
             mountPath: /conf
+          - name: worker-certs-volume
+            mountPath: /certs
+            readOnly: true
           ports:
           - containerPort: 7887
             protocol: TCP
@@ -48,6 +51,9 @@ items:
                 - key: worker
                   path: worker.yaml
             name: writer-worker-config-volume
+          - name: worker-certs-volume
+            secret:
+              secretName: backend-secret
 - apiVersion: v1
   kind: Service
   metadata:
@@ -62,4 +68,20 @@ items:
       port: 7887
     type: NodePort
     selector:
-      t-race: worker-writer
+      t-race: worker
+- apiVersion: extensions/v1beta1
+  kind: Ingress
+  metadata:
+    name: worker-service-ingress
+    annotations:
+      kubernetes.io/ingress.class: traefik
+  spec:
+    rules:
+    - host: frontend.local
+      http:
+        paths:
+        - backend:
+            serviceName: worker-service
+            servicePort: 7887
+    tls:
+     - secretName: frontend-secret
