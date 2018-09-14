@@ -1,16 +1,16 @@
 component:
   id: root
   deploymentKey: env01
-  work: 100000000 #100ms
-  calltype: SYNC
+  work: 100000 #100µs
+  calltype: ASYNC
   successors:
     - component:
       id: svc01
       deploymentKey: env02
-      work: 100000000
-      calltype: SYNC
+      work: 100000
+      calltype: ASYNC
     - component:
       id: svc02
       deploymentKey: env03
-      work: 50000000
+      work: 100000
       calltype: ASYNC

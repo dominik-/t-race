@@ -3,4 +3,5 @@ component:
   deploymentKey: env01
   work: 1000000 #1ms
   calltype: SYNC
-  Successors:
+  tags:
+    worktime: 1ms

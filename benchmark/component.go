@@ -69,6 +69,8 @@ type Component struct {
 	Successors []*Component `yaml:"successors,flow"`
 	//The effective work to be done by this component, which is the sum of its internal work, integrated with the effective work of all successors. This field is skipped during parsing (key '-').
 	EffectiveWork int `yaml:"-"`
+	//Tags are key value pairs of arbitrary string values, which are later written with each trace. For simplicity, currently only string-values are allowed, extrapolate other data-types accordingly.
+	Tags map[string]string `yaml:"tags"`
 }
 
 //ParseComponentDescription parses a YAML file containing a component / deployment description. Returns the root component or respective parsing errors, if the file was invalid.

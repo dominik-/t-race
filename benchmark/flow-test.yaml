@@ -3,6 +3,9 @@ component:
   deploymentKey: env01
   work: 100000000 #100ms
   calltype: SYNC
+  tags:
+    work: 100ms
+    sucessors: svc01,svc02
   successors:
     - component:
       id: svc01

@@ -14,16 +14,16 @@ import (
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "t-race", "Config file name. Can be YAML, JSON or TOML format.")
-	rootCmd.PersistentFlags().StringVarP(&deploymentFile, "deployment", "d", "components.yaml", "Component descriptor file name. Must be a YAML file.")
-	rootCmd.PersistentFlags().Int64VarP(&runtime, "runtime", "r", 60, "The runtime of the benchmark in seconds.")
-	rootCmd.PersistentFlags().Int64VarP(&baseThroughput, "baselineTP", "t", 10, "The target throughput per second, that arrives at the root component.")
-	rootCmd.PersistentFlags().StringVarP(&workerPrefix, "workerPrefix", "p", "Worker", "Prefix for worker threads writing traces.")
-	rootCmd.PersistentFlags().StringSliceVarP(&workers, "workers", "w", []string{""}, "Comma-separated list of worker addresses. For manual benchmark setups.")
-	rootCmd.PersistentFlags().StringVar(&resultDirPrefix, "resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
+	rootCmd.PersistentFlags().StringP("deployment", "d", "components.yaml", "Component descriptor file name. Must be a YAML file.")
+	rootCmd.PersistentFlags().Int64P("runtime", "r", 60, "The runtime of the benchmark in seconds.")
+	rootCmd.PersistentFlags().Int64P("baselineTP", "t", 10, "The target throughput per second, that arrives at the root component.")
+	rootCmd.PersistentFlags().StringP("workerPrefix", "p", "Worker", "Prefix for worker threads writing traces.")
+	rootCmd.PersistentFlags().StringSliceP("workers", "w", []string{""}, "Comma-separated list of worker addresses. For manual benchmark setups.")
+	rootCmd.PersistentFlags().String("resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
 	bindToViper("workers", rootCmd)
+	bindToViper("deployment", rootCmd)
 	bindToViper("runtime", rootCmd)
-	bindToViper("delay", rootCmd)
-	bindToViper("baseThroughput", rootCmd)
+	bindToViper("baselineTP", rootCmd)
 	bindToViper("workerPrefix", rootCmd)
 	bindToViper("resultDirPrefix", rootCmd)
 }
@@ -44,7 +44,7 @@ func bindToViper(flagName string, cmd *cobra.Command) {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "tracerbench",
+	Use:   "tracer-benchmarks",
 	Short: "Benchmarking tool for distributed tracing systems",
 	Long:  `Coordinator component for TRace, a benchmarking tool for distributed tracing systems.`,
 	Run:   ExecuteBenchmark,
@@ -77,6 +77,7 @@ func ExecuteBenchmark(cmd *cobra.Command, args []string) {
 func initConfig() {
 	configFileDir, configFileName := filepath.Split(cfgFile)
 	fileNameNoExt := configFileName[:len(configFileName)-len(filepath.Ext(configFileName))]
+	log.Printf("filename: %s, dirname: %s, noext: %s", configFileName, configFileDir, fileNameNoExt)
 	viper.SetConfigName(fileNameNoExt)
 	viper.AddConfigPath(configFileDir)
 	viper.AddConfigPath(".")
@@ -89,4 +90,10 @@ func initConfig() {
 			log.Fatalf("Configuration error: %v", serr)
 		}
 	}
+	deploymentFile = viper.GetString("deployment")
+	baseThroughput = viper.GetInt64("baselineTP")
+	runtime = viper.GetInt64("runtime")
+	workerPrefix = viper.GetString("workerPrefix")
+	workers = viper.GetStringSlice("workers")
+	resultDirPrefix = viper.GetString("resultDirPrefix")
 }

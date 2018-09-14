@@ -89,9 +89,9 @@ func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 	}
 	//wait until benchmark is over, plus six seconds (results stream poll interval + 1)
 	<-time.NewTimer(time.Second * time.Duration(benchmarkConf.Runtime)).C
-	toleranceDuration := 5 * time.Second
+	toleranceDuration := 10 * time.Second
 	log.Printf("Runtime finished. Waiting %v for final benchmark results...", toleranceDuration)
-	<-time.NewTimer(5 * time.Second).C
+	<-time.NewTimer(toleranceDuration).C
 	for _, channel := range finishedChannels {
 		channel <- true
 	}
