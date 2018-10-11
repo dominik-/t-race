@@ -1,0 +1,38 @@
+name: test
+components:
+  - id: svc01
+    calltype: SYNC
+    envRef: env01
+    sinkRef: agent1
+    work: 100000000 #100ms
+    tags:
+      work: 100ms
+    successors: 
+      - svc02
+      - svc03
+  - id: svc02
+    calltype: ASYNC
+    envRef: env02
+    sinkRef: agent2
+    successors: 
+      - svc03
+  - id: svc03
+    calltype: SYNC
+    envRef: env03
+    sinkRef: agent3
+environments:
+  - id: env01
+    provider: static #this should be the default
+  - id: env02
+  - id: env03
+sinks:
+  - id: agent1
+    provider: static
+    address: localhost:6831
+    envRef: env01
+  - id: agent2
+    provider: static
+    envRef: env02
+  - id: agent3
+    envRef: env03
+    provider: static

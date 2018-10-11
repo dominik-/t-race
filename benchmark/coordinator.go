@@ -74,7 +74,7 @@ func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 		spanSequence[0] = w.Component.ToSpanModel()
 		clientStream, err := clientStub.StartWorker(context.Background(), &api.WorkerConfiguration{
 			WorkerId:         w.Component.Identifier,
-			EnvironmentId:    w.Component.DeploymentKey,
+			EnvironmentId:    w.Component.EnvironmentRef,
 			RuntimeSeconds:   benchmarkConf.Runtime,
 			SpanSequence:     spanSequence,
 			TargetThroughput: benchmarkConf.Throughput,
@@ -149,10 +149,10 @@ func intToStringArray(array []int64) []string {
 func createEnvComponentsMap(components []*Component) map[string][]*Component {
 	result := make(map[string][]*Component)
 	for _, c := range components {
-		list, exists := result[c.DeploymentKey]
+		list, exists := result[c.EnvironmentRef]
 		if !exists {
 			list = make([]*Component, 0)
-			result[c.DeploymentKey] = list
+			result[c.EnvironmentRef] = list
 		}
 		list = append(list, c)
 	}
