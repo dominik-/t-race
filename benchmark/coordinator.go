@@ -16,29 +16,27 @@ import (
 )
 
 type Worker struct {
+	Environment  *Environment
 	Component    *Component
 	Address      string
 	Connection   *grpc.ClientConn
 	ResultStream api.BenchmarkWorker_StartWorkerClient
 }
 
-func AllocateWorkers(rootComponent *Component, adresses []string) []*Worker {
-	//Use the parsed components and combine with ip addresses to allocate "environments"
-	//traverse component tree
-	componentsInOrder := make([]*Component, 0)
-	workers := make([]*Worker, len(adresses))
-	componentsInOrder = AddComponentsToSlice(componentsInOrder, rootComponent)
-	envComponentsMap := createEnvComponentsMap(componentsInOrder)
+func AllocateWorkers(deployment *Deployment) []*Worker {
+	workers := make([]*Worker, len(deployment.Components))
+	envComponentsMap := createEnvComponentsMap(deployment.Components)
 
-	log.Printf("We have %d components, %d workers and %d env-keys", len(componentsInOrder), len(workers), len(envComponentsMap))
+	log.Printf("We have %d components and %d env-keys", len(deployment.Components), len(envComponentsMap))
 
-	if len(componentsInOrder) != len(adresses) {
-		log.Fatal("Not enough workers for components.")
-	}
-	for i, c := range componentsInOrder {
+	//TODO check if all env refs exist beforehand in validation phase
+	//TODO deploy workers on envs. Kubernetes API here?
+	for i, e := range deployment.Environments {
 		workers[i] = &Worker{
-			Component: c,
-			Address:   adresses[i],
+			Environment: e,
+			//Component:   envComponentsMap[e.Identifier],
+			//TODO set address of created worker here
+			Address: "",
 		}
 	}
 	return workers
@@ -111,7 +109,7 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 	for {
 		select {
 		case <-ticker.C:
-			//Problem: ticker is pretty meaningless, since Recv() blocks until a result is received.
+			//Problem: ticker interval is semi-meaningless, since Recv() blocks until a result is received.
 			//This means that the interval of receiving results here is strongly correlated to the interval with which results are sent to the stream.
 			resultPackage, err := worker.ResultStream.Recv()
 			if err != nil {

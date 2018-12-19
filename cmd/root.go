@@ -17,14 +17,10 @@ func init() {
 	rootCmd.PersistentFlags().StringP("deployment", "d", "components.yaml", "Component descriptor file name. Must be a YAML file.")
 	rootCmd.PersistentFlags().Int64P("runtime", "r", 60, "The runtime of the benchmark in seconds.")
 	rootCmd.PersistentFlags().Int64P("baselineTP", "t", 10, "The target throughput per second, that arrives at the root component.")
-	rootCmd.PersistentFlags().StringP("workerPrefix", "p", "Worker", "Prefix for worker threads writing traces.")
-	rootCmd.PersistentFlags().StringSliceP("workers", "w", []string{""}, "Comma-separated list of worker addresses. For manual benchmark setups.")
 	rootCmd.PersistentFlags().String("resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
-	bindToViper("workers", rootCmd)
 	bindToViper("deployment", rootCmd)
 	bindToViper("runtime", rootCmd)
 	bindToViper("baselineTP", rootCmd)
-	bindToViper("workerPrefix", rootCmd)
 	bindToViper("resultDirPrefix", rootCmd)
 }
 
@@ -35,7 +31,6 @@ var (
 	runtime         int64
 	workerPrefix    string
 	resultDirPrefix string
-	workers         []string
 )
 
 func bindToViper(flagName string, cmd *cobra.Command) {
@@ -64,12 +59,12 @@ func ExecuteBenchmark(cmd *cobra.Command, args []string) {
 		WorkerPrefix:    workerPrefix,
 		ResultDirPrefix: resultDirPrefix,
 	}
-	component, err := benchmark.ParseComponentDescription(deploymentFile)
-	log.Printf("Root component is: %v", component)
+	deployment, err := benchmark.ParseDeploymentDescription(deploymentFile)
+	log.Printf("Root component is: %v", deployment.Components[0])
 	if err != nil {
 		log.Fatalf("Parsing of component deployment description failed.")
 	}
-	workers := benchmark.AllocateWorkers(component, workers)
+	workers := benchmark.AllocateWorkers(deployment)
 	benchmark.SetupConnections(workers)
 	benchmark.StartBenchmark(workers, config)
 }
