@@ -1,26 +1,35 @@
-components:
-  - id: comp01
+services:
+  - id: svc01
     envRef: env01
     sinkRef: agent1
+    finalWork: work01
     units:
       - work: work02
-        component: comp02
-      - component: comp03
+        svc: svc02
+      - svc: svc03
     context:
-      Tags:
-        idString: 24
-        method: 60
-  - id: comp02
+      tags:
+        - idString:
+            key: 20
+            value: 40
+        - method:
+            key: 8
+            value: 60
+      baggage:
+        - clientId:
+            key: 10
+            value: 30
+  - id: svc02
     envRef: env02
     sinkRef: agent2
     units:
       - work: work02
-        component: comp04
+        svc: svc04
     context:
       Tags:
         idString: 24
         method: 60
-  - id: comp03
+  - id: svc03
     envRef: env03
     sinkRef: agent3
     units:
@@ -29,16 +38,11 @@ components:
       Tags:
         idString: 24
         method: 60
-  - id: comp04
+  - id: svc04
     envRef: env03
     sinkRef: agent3
     units:
       - work: work02
-environments:
-  - id: env01
-    provider: static #this should be the default
-  - id: env02
-  - id: env03
 sinks:
   - id: agent1
     type: provided

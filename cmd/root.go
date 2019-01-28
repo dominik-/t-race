@@ -9,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/benchmark"
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/provider"
 )
 
 func init() {
@@ -60,11 +61,16 @@ func ExecuteBenchmark(cmd *cobra.Command, args []string) {
 		ResultDirPrefix: resultDirPrefix,
 	}
 	deployment, err := benchmark.ParseDeploymentDescription(deploymentFile)
-	log.Printf("Root component is: %v", deployment.Components[0])
 	if err != nil {
 		log.Fatalf("Parsing of component deployment description failed.")
 	}
-	workers := benchmark.AllocateWorkers(deployment)
+	workerPorts := []int{9001, 9002, 9003}
+	sinkPorts := []int{9011}
+	prov := provider.NewLocalStaticProvider(workerPorts, sinkPorts)
+	prov.CreateEnvironments(deployment.Environments)
+	sinkMap := prov.AllocateServices(deployment.Sinks)
+	serviceMap := prov.AllocateSinks(deployment.Services)
+
 	benchmark.SetupConnections(workers)
 	benchmark.StartBenchmark(workers, config)
 }

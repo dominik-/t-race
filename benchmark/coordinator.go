@@ -15,34 +15,50 @@ import (
 	"google.golang.org/grpc/credentials"
 )
 
+type Benchmark struct {
+	Name    string
+	Workers []*Worker
+}
+
 type Worker struct {
-	Environment  *Environment
-	Component    *Component
+	Config       *api.WorkerConfiguration
 	Address      string
 	Connection   *grpc.ClientConn
 	ResultStream api.BenchmarkWorker_StartWorkerClient
 }
 
 func AllocateWorkers(deployment *Deployment) []*Worker {
-	workers := make([]*Worker, len(deployment.Components))
-	envComponentsMap := createEnvComponentsMap(deployment.Components)
+	workers := make([]*Worker, len(deployment.Services))
+	envServicesMap := createEnvServicesMap(deployment.Services)
 
-	log.Printf("We have %d components and %d env-keys", len(deployment.Components), len(envComponentsMap))
+	log.Printf("We have %d components and %d env-keys", len(deployment.Services), len(envServicesMap))
 
 	//TODO check if all env refs exist beforehand in validation phase
 	//TODO deploy workers on envs. Kubernetes API here?
-	for i, e := range deployment.Environments {
-		workers[i] = &Worker{
-			Environment: e,
-			//Component:   envComponentsMap[e.Identifier],
-			//TODO set address of created worker here
-			Address: "",
-		}
-	}
+	// for i, e := range deployment.Services {
+	// 	workers[i] = &Worker{
+	// 		Address:
+	// 		Environment: e,
+	// 		//Service:   envServicesMap[e.Identifier],
+	// 		//TODO set address of created worker here
+	// 		Address: "",
+	// 	}
+	// }
 	return workers
 }
 
-func SetupConnections(workers []*Worker) {
+func Setup(deployment *Deployment, serviceMap, sinkMap map[string]string) *Benchmark {
+	workers := make([]*Worker, 0)
+
+	configs := MapDeploymentToWorkerConfigs(*deployment, sinkMap, serviceMap)
+
+	for id, config := range configs {
+		workers = append(workers, &Worker{
+			Address: serviceMap[id],
+			Config:  config,
+		})
+	}
+
 	// Create credentials that skip root CA verification
 	creds := credentials.NewTLS(&tls.Config{
 		InsecureSkipVerify: true,
@@ -54,6 +70,10 @@ func SetupConnections(workers []*Worker) {
 			log.Printf("Couldnt connect to worker: %v, error was: %v", w, err)
 		}
 		w.Connection = conn
+	}
+	return &Benchmark{
+		Name:    deployment.Name,
+		Workers: workers,
 	}
 }
 
@@ -68,15 +88,7 @@ func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 	finishedChannels := make([]chan bool, 0)
 	for _, w := range workers {
 		clientStub := api.NewBenchmarkWorkerClient(w.Connection)
-		spanSequence := make([]*api.SpanModel, 1)
-		spanSequence[0] = w.Component.ToSpanModel()
-		clientStream, err := clientStub.StartWorker(context.Background(), &api.WorkerConfiguration{
-			WorkerId:         w.Component.Identifier,
-			EnvironmentId:    w.Component.EnvironmentRef,
-			RuntimeSeconds:   benchmarkConf.Runtime,
-			SpanSequence:     spanSequence,
-			TargetThroughput: benchmarkConf.Throughput,
-		})
+		clientStream, err := clientStub.StartWorker(context.Background(), w.Config)
 		if err != nil {
 			log.Printf("Couldn't call worker %v, error was : %v", w, err)
 		}
@@ -99,7 +111,7 @@ func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 }
 
 func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool) {
-	fileHandle, err := os.Create(resultDir + "/" + worker.Component.Identifier + ".csv")
+	fileHandle, err := os.Create(resultDir + "/" + worker.Config.WorkerId + ".csv")
 	if err != nil {
 		log.Printf("Couldn't create output file, reason: %v", err)
 	}
@@ -124,7 +136,7 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 			if resultPackage != nil {
 				for _, res := range resultPackage.GetResults() {
 					//TODO need different serialization here - we currently write to CSV, long-term there should be an interface for arbitrary storage
-					resArray := []int64{res.SpanId, res.SpanCreationBeginTime, res.SpanCreationEndTime, res.SpanFinishBeginTime, res.SpanFinishEndTime}
+					resArray := []int64{res.SpanId, res.TotalSpanLength}
 					writer.Write(intToStringArray(resArray))
 				}
 			}
@@ -144,12 +156,12 @@ func intToStringArray(array []int64) []string {
 	return res
 }
 
-func createEnvComponentsMap(components []*Component) map[string][]*Component {
-	result := make(map[string][]*Component)
+func createEnvServicesMap(components []*Service) map[string][]*Service {
+	result := make(map[string][]*Service)
 	for _, c := range components {
 		list, exists := result[c.EnvironmentRef]
 		if !exists {
-			list = make([]*Component, 0)
+			list = make([]*Service, 0)
 			result[c.EnvironmentRef] = list
 		}
 		list = append(list, c)

@@ -2,7 +2,6 @@ package benchmark
 
 import (
 	"os"
-	"reflect"
 	"strings"
 	"testing"
 
@@ -16,7 +15,7 @@ func TestCreateYamlFile(t *testing.T) {
 
 	deployment := &Deployment{
 		Name:         "deploymentTestSerialize",
-		Components:   []*Component{},
+		Services:     []*Service{},
 		Environments: []*Environment{},
 		Sinks:        []*Sink{},
 	}
@@ -34,20 +33,20 @@ func TestReadFromYamlFile(t *testing.T) {
 	if err != nil {
 		t.Fatalf("YAML parse error: %v", err)
 	}
-	if strings.Compare(deployment.Components[0].Identifier, "comp01") != 0 {
+	if strings.Compare(deployment.Services[0].Identifier, "comp01") != 0 {
 		t.Fail()
 	}
-	if len(deployment.Components[0].Units) != 2 {
+	if len(deployment.Services[0].Units) != 2 {
 		t.Fail()
 	}
-	t.Logf("Successor 0:%v", deployment.Components[0].Units[0].SuccessorRef)
-	t.Logf("Successor 1:%v", deployment.Components[0].Units[1].SuccessorRef)
+	t.Logf("Successor 0:%v", deployment.Services[0].Units[0].SuccessorRef)
+	t.Logf("Successor 1:%v", deployment.Services[0].Units[1].SuccessorRef)
 }
 
 func TestWorkTypeParsing(t *testing.T) {
 	deployment, _ := ParseDeploymentDescription(filenameValid)
-	t.Logf("Work found: %v", deployment.Components[0].Units[0].WorkClass)
-	if reflect.TypeOf(deployment.Components[0].Units[0].WorkClass) != reflect.TypeOf(new(ConstantWork)) {
+	t.Logf("Work found: %v", deployment.Services[0].Units[0].WorkUnit)
+	if deployment.Services[0].Units[0].WorkUnit != deployment.WorkUnits[0] {
 		t.Fail()
 	}
 }

@@ -27,11 +27,15 @@
 
 [[constraint]]
   name = "github.com/spf13/cobra"
-  version = "0.0.1"
+  version = "0.0.3"
 
 [[constraint]]
   name = "github.com/spf13/viper"
-  version = "1.0.0"
+  version = "1.0.2"
+
+[[constraint]]
+  name = "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
+  version = "0.4.1"
 
 [prune]
   go-tests = true
