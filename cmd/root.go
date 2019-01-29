@@ -68,11 +68,11 @@ func ExecuteBenchmark(cmd *cobra.Command, args []string) {
 	sinkPorts := []int{9011}
 	prov := provider.NewLocalStaticProvider(workerPorts, sinkPorts)
 	prov.CreateEnvironments(deployment.Environments)
-	sinkMap := prov.AllocateServices(deployment.Sinks)
-	serviceMap := prov.AllocateSinks(deployment.Services)
+	prov.AllocateServices(deployment.Services)
+	prov.AllocateSinks(deployment.Sinks)
 
-	benchmark.SetupConnections(workers)
-	benchmark.StartBenchmark(workers, config)
+	b := benchmark.Setup(deployment, prov.SvcMap, prov.SinkMap, config)
+	b.StartBenchmark()
 }
 
 func initConfig() {
@@ -95,6 +95,5 @@ func initConfig() {
 	baseThroughput = viper.GetInt64("baselineTP")
 	runtime = viper.GetInt64("runtime")
 	workerPrefix = viper.GetString("workerPrefix")
-	workers = viper.GetStringSlice("workers")
 	resultDirPrefix = viper.GetString("resultDirPrefix")
 }

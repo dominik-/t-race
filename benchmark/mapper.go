@@ -12,6 +12,7 @@ func MapDeploymentToWorkerConfigs(d Deployment, sinks, services map[string]strin
 			Root:          svc.IsRoot,
 			Units:         toUnits(svc.Units, services),
 			WorkFinal:     toWorkUnit(svc.FinalWork),
+			//TODO add thrpughput and target runtime here
 		}
 		workers[svc.Identifier] = conf
 	}

@@ -18,6 +18,7 @@ import (
 type Benchmark struct {
 	Name    string
 	Workers []*Worker
+	Config  *BenchmarkConfig
 }
 
 type Worker struct {
@@ -27,27 +28,7 @@ type Worker struct {
 	ResultStream api.BenchmarkWorker_StartWorkerClient
 }
 
-func AllocateWorkers(deployment *Deployment) []*Worker {
-	workers := make([]*Worker, len(deployment.Services))
-	envServicesMap := createEnvServicesMap(deployment.Services)
-
-	log.Printf("We have %d components and %d env-keys", len(deployment.Services), len(envServicesMap))
-
-	//TODO check if all env refs exist beforehand in validation phase
-	//TODO deploy workers on envs. Kubernetes API here?
-	// for i, e := range deployment.Services {
-	// 	workers[i] = &Worker{
-	// 		Address:
-	// 		Environment: e,
-	// 		//Service:   envServicesMap[e.Identifier],
-	// 		//TODO set address of created worker here
-	// 		Address: "",
-	// 	}
-	// }
-	return workers
-}
-
-func Setup(deployment *Deployment, serviceMap, sinkMap map[string]string) *Benchmark {
+func Setup(deployment *Deployment, serviceMap, sinkMap map[string]string, config *BenchmarkConfig) *Benchmark {
 	workers := make([]*Worker, 0)
 
 	configs := MapDeploymentToWorkerConfigs(*deployment, sinkMap, serviceMap)
@@ -74,19 +55,20 @@ func Setup(deployment *Deployment, serviceMap, sinkMap map[string]string) *Bench
 	return &Benchmark{
 		Name:    deployment.Name,
 		Workers: workers,
+		Config:  config,
 	}
 }
 
-func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
+func (benchmark *Benchmark) StartBenchmark() {
 	//start benchmark on all workers and keep receiving their results
 	//need to fork out into separate threads and write results to files/database
-	dirname := benchmarkConf.ResultDirPrefix + time.Now().Format(time.RFC3339)
+	dirname := benchmark.Config.ResultDirPrefix + time.Now().Format(time.RFC3339)
 	err := os.Mkdir(dirname, 0700)
 	if err != nil {
 		log.Printf("Couldn't create output file, reason: %v", err)
 	}
 	finishedChannels := make([]chan bool, 0)
-	for _, w := range workers {
+	for _, w := range benchmark.Workers {
 		clientStub := api.NewBenchmarkWorkerClient(w.Connection)
 		clientStream, err := clientStub.StartWorker(context.Background(), w.Config)
 		if err != nil {
@@ -98,7 +80,7 @@ func StartBenchmark(workers []*Worker, benchmarkConf *BenchmarkConfig) {
 		go WriteResults(w, dirname, finishedChan)
 	}
 	//wait until benchmark is over, plus six seconds (results stream poll interval + 1)
-	<-time.NewTimer(time.Second * time.Duration(benchmarkConf.Runtime)).C
+	<-time.NewTimer(time.Second * time.Duration(benchmark.Config.Runtime)).C
 	toleranceDuration := 10 * time.Second
 	log.Printf("Runtime finished. Waiting %v for final benchmark results...", toleranceDuration)
 	<-time.NewTimer(toleranceDuration).C

@@ -1,16 +1,21 @@
 package provider
 
-import "gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/benchmark"
+import (
+	"strconv"
+
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/benchmark"
+)
 
 type Provider interface {
-	CreateEnvironments([]*benchmark.Environments) map[string]string
-	AllocateSinks([]*benchmark.Sink) map[string]string
-	AllocateServices([]*benchmark.Service) map[string]string
+	CreateEnvironments([]string)
+	AllocateSinks([]*benchmark.Sink)
+	AllocateServices([]*benchmark.Service)
 }
 
 type LocalStaticProvider struct {
-	envMap              map[string]string
-	svcMap              map[string]string
+	EnvMap              map[string]string
+	SvcMap              map[string]string
+	SinkMap             map[string]string
 	WorkerPorts         []int
 	SinkPorts           []int
 	allocateWorkerPorts bool
@@ -32,16 +37,15 @@ func NewLocalStaticProvider(workerPorts, sinkPorts []int) *LocalStaticProvider {
 	return prov
 }
 
-func (p *LocalStaticProvider) CreateEnvironments(envs []*benchmark.Environments) map[string]string {
-	p.envMap = make(map[string]string, len(envs))
-	for _, e := range envs {
-		p.envMap[e.Identifier] = "localhost"
+func (p *LocalStaticProvider) CreateEnvironments(envRefs []string) {
+	p.EnvMap = make(map[string]string, len(envRefs))
+	for _, e := range envRefs {
+		p.EnvMap[e] = "localhost"
 	}
-	return
 }
 
-func (p *LocalStaticProvider) AllocateServices(svcs []*benchmark.Service) map[string]string {
-	svcMap = make(map[string]string, len(svcs))
+func (p *LocalStaticProvider) AllocateServices(svcs []*benchmark.Service) {
+	p.SvcMap = make(map[string]string, len(svcs))
 	for i, s := range svcs {
 		var port int
 		if p.allocateWorkerPorts {
@@ -50,13 +54,12 @@ func (p *LocalStaticProvider) AllocateServices(svcs []*benchmark.Service) map[st
 		} else {
 			port = p.WorkerPorts[i]
 		}
-		svcMap[s.Identifier] = p.envMap[s.EnvironmentRef] + ":" + port
+		p.SvcMap[s.Identifier] = p.EnvMap[s.EnvironmentRef] + ":" + strconv.Itoa(port)
 	}
-	return
 }
 
-func (p *LocalStaticProvider) AllocateSinks(sinks []*benchmark.Sink) map[string]string {
-	sinkMap = make(map[string]string, len(sinks))
+func (p *LocalStaticProvider) AllocateSinks(sinks []*benchmark.Sink) {
+	p.SinkMap = make(map[string]string, len(sinks))
 	for i, s := range sinks {
 		var port int
 		if p.allocateSinkPorts {
@@ -65,7 +68,6 @@ func (p *LocalStaticProvider) AllocateSinks(sinks []*benchmark.Sink) map[string]
 		} else {
 			port = p.SinkPorts[i]
 		}
-		sinkMap[s.Identifier] = p.envMap[s.EnvironmentRef] + ":" + port
+		p.SinkMap[s.Identifier] = p.EnvMap[s.EnvironmentRef] + ":" + strconv.Itoa(port)
 	}
-	return
 }
