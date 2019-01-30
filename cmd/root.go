@@ -15,22 +15,27 @@ import (
 func init() {
 	cobra.OnInitialize(initConfig)
 	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "t-race", "Config file name. Can be YAML, JSON or TOML format.")
-	rootCmd.PersistentFlags().StringP("deployment", "d", "components.yaml", "Component descriptor file name. Must be a YAML file.")
+	rootCmd.PersistentFlags().StringP("services", "s", "components.yaml", "Component descriptor file name. Must be a YAML file.")
 	rootCmd.PersistentFlags().Int64P("runtime", "r", 60, "The runtime of the benchmark in seconds.")
 	rootCmd.PersistentFlags().Int64P("baselineTP", "t", 10, "The target throughput per second, that arrives at the root component.")
 	rootCmd.PersistentFlags().String("resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
-	bindToViper("deployment", rootCmd)
+	rootCmd.PersistentFlags().IntSlice("sinks", []int{}, "")
+	rootCmd.PersistentFlags().IntSlice("workers", []int{}, "")
+	bindToViper("services", rootCmd)
 	bindToViper("runtime", rootCmd)
 	bindToViper("baselineTP", rootCmd)
 	bindToViper("resultDirPrefix", rootCmd)
+	bindToViper("sinks", rootCmd)
+	bindToViper("workers", rootCmd)
 }
 
 var (
 	cfgFile         string
-	deploymentFile  string
+	sinks           []int
+	workers         []int
+	serviceFile     string
 	baseThroughput  int64
 	runtime         int64
-	workerPrefix    string
 	resultDirPrefix string
 )
 
@@ -57,16 +62,13 @@ func ExecuteBenchmark(cmd *cobra.Command, args []string) {
 	config := &benchmark.BenchmarkConfig{
 		Throughput:      baseThroughput,
 		Runtime:         runtime,
-		WorkerPrefix:    workerPrefix,
 		ResultDirPrefix: resultDirPrefix,
 	}
-	deployment, err := benchmark.ParseDeploymentDescription(deploymentFile)
+	deployment, err := benchmark.ParseDeploymentDescription(serviceFile)
 	if err != nil {
 		log.Fatalf("Parsing of component deployment description failed.")
 	}
-	workerPorts := []int{9001, 9002, 9003}
-	sinkPorts := []int{9011}
-	prov := provider.NewLocalStaticProvider(workerPorts, sinkPorts)
+	prov := provider.NewLocalStaticProvider(workers, sinks)
 	prov.CreateEnvironments(deployment.Environments)
 	prov.AllocateServices(deployment.Services)
 	prov.AllocateSinks(deployment.Sinks)
@@ -91,9 +93,18 @@ func initConfig() {
 			log.Fatalf("Configuration error: %v", serr)
 		}
 	}
-	deploymentFile = viper.GetString("deployment")
+	serviceFile = viper.GetString("services")
 	baseThroughput = viper.GetInt64("baselineTP")
 	runtime = viper.GetInt64("runtime")
-	workerPrefix = viper.GetString("workerPrefix")
 	resultDirPrefix = viper.GetString("resultDirPrefix")
+	if s, castable := viper.Get("sinks").([]int); !castable {
+		sinks = []int{}
+	} else {
+		sinks = s
+	}
+	if s, castable := viper.Get("workers").([]int); !castable {
+		workers = []int{}
+	} else {
+		workers = s
+	}
 }

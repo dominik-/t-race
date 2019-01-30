@@ -2,16 +2,18 @@ package benchmark
 
 import api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
 
-func MapDeploymentToWorkerConfigs(d Deployment, sinks, services map[string]string) map[string]*api.WorkerConfiguration {
+func MapDeploymentToWorkerConfigs(d Deployment, b BenchmarkConfig, sinks, services map[string]string) map[string]*api.WorkerConfiguration {
 	workers := make(map[string]*api.WorkerConfiguration, len(d.Services))
 	for _, svc := range d.Services {
 		conf := &api.WorkerConfiguration{
-			OperationName: svc.Identifier,
-			SinkHostPort:  sinks[svc.SinkRef],
-			Context:       toSpanContext(svc.Context),
-			Root:          svc.IsRoot,
-			Units:         toUnits(svc.Units, services),
-			WorkFinal:     toWorkUnit(svc.FinalWork),
+			OperationName:    svc.Identifier,
+			SinkHostPort:     sinks[svc.SinkRef],
+			Context:          toSpanContext(svc.Context),
+			Root:             svc.IsRoot,
+			Units:            toUnits(svc.Units, services),
+			WorkFinal:        toWorkUnit(svc.FinalWork),
+			TargetThroughput: b.Throughput,
+			RuntimeSeconds:   b.Runtime,
 			//TODO add thrpughput and target runtime here
 		}
 		workers[svc.Identifier] = conf

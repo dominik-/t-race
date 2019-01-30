@@ -31,7 +31,7 @@ type Worker struct {
 func Setup(deployment *Deployment, serviceMap, sinkMap map[string]string, config *BenchmarkConfig) *Benchmark {
 	workers := make([]*Worker, 0)
 
-	configs := MapDeploymentToWorkerConfigs(*deployment, sinkMap, serviceMap)
+	configs := MapDeploymentToWorkerConfigs(*deployment, *config, sinkMap, serviceMap)
 
 	for id, config := range configs {
 		workers = append(workers, &Worker{
