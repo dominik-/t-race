@@ -1,7 +1,0 @@
-component:
-  id: root
-  deploymentKey: env01
-  work: 1000000 #1ms
-  calltype: SYNC
-  tags:
-    worktime: 1ms

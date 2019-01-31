@@ -28,10 +28,14 @@ func NewLocalStaticProvider(workerPorts, sinkPorts []int) *LocalStaticProvider {
 	if workerPorts == nil || len(workerPorts) < 1 {
 		prov.allocateWorkerPorts = true
 		prov.WorkerPorts = make([]int, 0)
+	} else {
+		prov.WorkerPorts = workerPorts
 	}
 	if sinkPorts == nil || len(sinkPorts) < 1 {
 		prov.allocateSinkPorts = true
 		prov.SinkPorts = make([]int, 0)
+	} else {
+		prov.SinkPorts = sinkPorts
 	}
 	prov.nextPort = 9001
 	return prov
