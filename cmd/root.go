@@ -20,23 +20,20 @@ func init() {
 	rootCmd.PersistentFlags().Int64P("baselineTP", "t", 10, "The target throughput per second, that arrives at the root component.")
 	rootCmd.PersistentFlags().String("resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
 	rootCmd.PersistentFlags().String("deploymentFile", "deployment.json", "File that contains a static deployment of workers and sinks.")
-	rootCmd.PersistentFlags().IntSlice("sinks", []int{}, "")
 	bindToViper("services", rootCmd)
 	bindToViper("runtime", rootCmd)
 	bindToViper("baselineTP", rootCmd)
 	bindToViper("resultDirPrefix", rootCmd)
-	bindToViper("sinks", rootCmd)
-	bindToViper("workers", rootCmd)
+	bindToViper("deploymentFile", rootCmd)
 }
 
 var (
 	cfgFile         string
-	sinks           []int
-	workers         []int
 	serviceFile     string
 	baseThroughput  int64
 	runtime         int64
 	resultDirPrefix string
+	deploymentFile  string
 )
 
 func bindToViper(flagName string, cmd *cobra.Command) {
@@ -66,9 +63,12 @@ func ExecuteBenchmark(cmd *cobra.Command, args []string) {
 	}
 	deployment, err := benchmark.ParseDeploymentDescription(serviceFile)
 	if err != nil {
-		log.Fatalf("Parsing of component deployment description failed.")
+		log.Fatalf("Parsing of service map failed: %v", err)
 	}
-	prov := provider.NewLocalStaticProvider(workers, sinks)
+	prov, err := provider.NewStaticProvider(deploymentFile)
+	if err != nil {
+		log.Fatalf("Error parsing the deployment file: %v", err)
+	}
 	prov.CreateEnvironments(deployment.Environments)
 	prov.AllocateServices(deployment.Services)
 	prov.AllocateSinks(deployment.Sinks)
@@ -97,14 +97,5 @@ func initConfig() {
 	baseThroughput = viper.GetInt64("baselineTP")
 	runtime = viper.GetInt64("runtime")
 	resultDirPrefix = viper.GetString("resultDirPrefix")
-	if s, castable := viper.Get("sinks").([]int); !castable {
-		sinks = []int{}
-	} else {
-		sinks = s
-	}
-	if s, castable := viper.Get("workers").([]int); !castable {
-		workers = []int{}
-	} else {
-		workers = s
-	}
+	deploymentFile = viper.GetString("deploymentFile")
 }

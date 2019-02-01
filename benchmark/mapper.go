@@ -2,19 +2,26 @@ package benchmark
 
 import api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
 
-func MapDeploymentToWorkerConfigs(d Deployment, b BenchmarkConfig, sinks, services map[string]string) map[string]*api.WorkerConfiguration {
+func MapDeploymentToWorkerConfigs(d Model, b BenchmarkConfig, sinks, services map[string]string) map[string]*api.WorkerConfiguration {
 	workers := make(map[string]*api.WorkerConfiguration, len(d.Services))
 	for _, svc := range d.Services {
+		var finalWork *api.Work
+		if svc.FinalWork != nil {
+			finalWork = toWorkUnit(svc.FinalWork)
+		}
+		var context *api.ContextTemplate
+		if svc.Context != nil {
+			context = toSpanContext(svc.Context)
+		}
 		conf := &api.WorkerConfiguration{
 			OperationName:    svc.Identifier,
 			SinkHostPort:     sinks[svc.SinkRef],
-			Context:          toSpanContext(svc.Context),
+			Context:          context,
 			Root:             svc.IsRoot,
 			Units:            toUnits(svc.Units, services),
-			WorkFinal:        toWorkUnit(svc.FinalWork),
+			WorkFinal:        finalWork,
 			TargetThroughput: b.Throughput,
 			RuntimeSeconds:   b.Runtime,
-			//TODO add thrpughput and target runtime here
 		}
 		workers[svc.Identifier] = conf
 	}
@@ -41,15 +48,22 @@ func toTagTemplate(template map[int]int) []*api.TagTemplate {
 }
 
 func toUnits(units []*Unit, services map[string]string) []*api.Unit {
-	unitsAPI := make([]*api.Unit, len(units))
-	for i, u := range units {
-		unitsAPI[i] = &api.Unit{
-			InvokedHostPort: services[u.Successor.Identifier],
-			RelType:         u.Rel,
-			WorkBefore:      toWorkUnit(u.WorkUnit),
+	if units != nil && len(units) > 0 {
+		unitsAPI := make([]*api.Unit, len(units))
+		for i, u := range units {
+			var workBefore *api.Work
+			if u.WorkUnit != nil {
+				workBefore = toWorkUnit(u.WorkUnit)
+			}
+			unitsAPI[i] = &api.Unit{
+				InvokedHostPort: services[u.SuccessorRef],
+				RelType:         u.Rel,
+				WorkBefore:      workBefore,
+			}
 		}
+		return unitsAPI
 	}
-	return unitsAPI
+	return nil
 }
 
 func toWorkUnit(wu *WorkUnit) *api.Work {

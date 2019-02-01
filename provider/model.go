@@ -1,7 +1,8 @@
 package provider
 
 import (
-	"strconv"
+	"encoding/json"
+	"os"
 
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/benchmark"
 )
@@ -12,66 +13,59 @@ type Provider interface {
 	AllocateServices([]*benchmark.Service)
 }
 
-type LocalStaticProvider struct {
-	EnvMap              map[string]string
-	SvcMap              map[string]string
-	SinkMap             map[string]string
-	WorkerPorts         []int
-	SinkPorts           []int
-	allocateWorkerPorts bool
-	allocateSinkPorts   bool
-	nextPort            int
+type StaticProvider struct {
+	EnvMap     map[string]string
+	SvcMap     map[string]string
+	SinkMap    map[string]string
+	deployment *Deployment
 }
 
-func NewLocalStaticProvider(workerPorts, sinkPorts []int) *LocalStaticProvider {
-	prov := &LocalStaticProvider{}
-	if workerPorts == nil || len(workerPorts) < 1 {
-		prov.allocateWorkerPorts = true
-		prov.WorkerPorts = make([]int, 0)
-	} else {
-		prov.WorkerPorts = workerPorts
-	}
-	if sinkPorts == nil || len(sinkPorts) < 1 {
-		prov.allocateSinkPorts = true
-		prov.SinkPorts = make([]int, 0)
-	} else {
-		prov.SinkPorts = sinkPorts
-	}
-	prov.nextPort = 9001
-	return prov
+type WorkerAddress struct {
+	BenchmarkAddress string `json:"benchmark"`
+	ServiceAddress   string `json:"service"`
 }
 
-func (p *LocalStaticProvider) CreateEnvironments(envRefs []string) {
+type Deployment struct {
+	WorkerAddresses []*WorkerAddress `json:"workers"`
+	Sinks           []string         `json:"sinks"`
+}
+
+func NewStaticProvider(filename string) (*StaticProvider, error) {
+	fileHandle, err := os.Open(filename)
+	if err != nil {
+		return nil, err
+	}
+
+	decoder := json.NewDecoder(fileHandle)
+	var d Deployment
+	err = decoder.Decode(&d)
+	if err != nil {
+		return nil, err
+	}
+	return &StaticProvider{
+		deployment: &d,
+	}, nil
+}
+
+func (p *StaticProvider) CreateEnvironments(envRefs []string) {
+	//we don't actually create environments here; usually we would create the instances and manage co-deployment here
 	p.EnvMap = make(map[string]string, len(envRefs))
 	for _, e := range envRefs {
 		p.EnvMap[e] = "localhost"
 	}
 }
 
-func (p *LocalStaticProvider) AllocateServices(svcs []*benchmark.Service) {
+func (p *StaticProvider) AllocateServices(svcs []*benchmark.Service) {
 	p.SvcMap = make(map[string]string, len(svcs))
 	for i, s := range svcs {
-		var port int
-		if p.allocateWorkerPorts {
-			port = p.nextPort
-			p.nextPort++
-		} else {
-			port = p.WorkerPorts[i]
-		}
-		p.SvcMap[s.Identifier] = p.EnvMap[s.EnvironmentRef] + ":" + strconv.Itoa(port)
+		//We ignore environments here;
+		p.SvcMap[s.Identifier] = p.deployment.WorkerAddresses[i].ServiceAddress
 	}
 }
 
-func (p *LocalStaticProvider) AllocateSinks(sinks []*benchmark.Sink) {
+func (p *StaticProvider) AllocateSinks(sinks []*benchmark.Sink) {
 	p.SinkMap = make(map[string]string, len(sinks))
 	for i, s := range sinks {
-		var port int
-		if p.allocateSinkPorts {
-			port = p.nextPort
-			p.nextPort++
-		} else {
-			port = p.SinkPorts[i]
-		}
-		p.SinkMap[s.Identifier] = p.EnvMap[s.EnvironmentRef] + ":" + strconv.Itoa(port)
+		p.SinkMap[s.Identifier] = p.deployment.Sinks[i]
 	}
 }

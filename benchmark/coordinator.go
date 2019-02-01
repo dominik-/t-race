@@ -2,7 +2,6 @@ package benchmark
 
 import (
 	"context"
-	"crypto/tls"
 	"encoding/csv"
 	"io"
 	"log"
@@ -12,7 +11,6 @@ import (
 
 	api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 )
 
 type Benchmark struct {
@@ -28,7 +26,7 @@ type Worker struct {
 	ResultStream api.BenchmarkWorker_StartWorkerClient
 }
 
-func Setup(deployment *Deployment, serviceMap, sinkMap map[string]string, config *BenchmarkConfig) *Benchmark {
+func Setup(deployment *Model, serviceMap, sinkMap map[string]string, config *BenchmarkConfig) *Benchmark {
 	workers := make([]*Worker, 0)
 
 	configs := MapDeploymentToWorkerConfigs(*deployment, *config, sinkMap, serviceMap)
@@ -41,12 +39,14 @@ func Setup(deployment *Deployment, serviceMap, sinkMap map[string]string, config
 	}
 
 	// Create credentials that skip root CA verification
-	creds := credentials.NewTLS(&tls.Config{
-		InsecureSkipVerify: true,
-	})
+	/* 	creds := credentials.NewTLS(&tls.Config{
+	   		InsecureSkipVerify: true,
+	   	})
+	   	option := grpc.WithTransportCredentials(creds) */
+	option := grpc.WithInsecure()
 	// Establish connections to all workers.
 	for _, w := range workers {
-		conn, err := grpc.Dial(w.Address, grpc.WithTransportCredentials(creds))
+		conn, err := grpc.Dial(w.Address, option)
 		if err != nil {
 			log.Printf("Couldnt connect to worker: %v, error was: %v", w, err)
 		}

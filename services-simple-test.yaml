@@ -9,16 +9,10 @@ services:
       - svc: svc03
     context:
       tags:
-        - idString:
-            key: 20
-            value: 40
-        - method:
-            key: 8
-            value: 60
+        20: 40
+        8: 60
       baggage:
-        - clientId:
-            key: 10
-            value: 30
+        10: 30
   - id: svc02
     envRef: env01
     sinkRef: agent1
@@ -27,31 +21,13 @@ services:
         svc: svc04
     context:
       tags:
-        - idString:
-            key: 20
-            value: 40
-        - method:
-            key: 8
-            value: 60
+        20: 40
+        8: 60
       baggage:
-        - serviceId:
-            key: 8
-            value: 18
+        8: 18
   - id: svc03
     envRef: env01
     sinkRef: agent1
-    context:
-      tags:
-        - idString:
-            key: 20
-            value: 40
-        - method:
-            key: 8
-            value: 60
-      baggage:
-        - serviceId:
-            key: 8
-            value: 18
   - id: svc04
     envRef: env01
     sinkRef: agent1
@@ -64,7 +40,7 @@ workUnits:
     type: constant
     params:
       value: 100
- - id: work02
+  - id: work02
     type: constant
     params:
       value: 10

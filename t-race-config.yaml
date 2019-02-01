@@ -1,7 +1,0 @@
-components: deployment-tests01.yaml
-workers:
-  - frontend.local:443
-  - frontend.local:443
-  - frontend.local:443
-runtime: 30
-baselineTP: 1000

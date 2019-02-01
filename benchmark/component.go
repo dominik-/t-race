@@ -51,7 +51,7 @@ func (r *relationshipType) UnmarshalYAML(unmarshal func(value interface{}) error
 
 //Deployment describes a set of services (which form a dependency tree), a set of sinks (which are endpoints to which services send traces), and a set of environments
 //(logical references to deployment environments, which are used by services and sinks to learn about collocation)
-type Deployment struct {
+type Model struct {
 	Name         string      `yaml:"name"`
 	Services     []*Service  `yaml:"services,flow"`
 	Sinks        []*Sink     `yaml:"sinks,flow"`
@@ -83,7 +83,7 @@ type Unit struct {
 	WorkRef  string    `yaml:"work"`
 	WorkUnit *WorkUnit `yaml:"-"`
 	//Reference to the called service. String to match defined services.
-	SuccessorRef string   `yaml:"service"`
+	SuccessorRef string   `yaml:"svc"`
 	Successor    *Service `yaml:"-"`
 }
 
@@ -110,7 +110,7 @@ type Sink struct {
 }
 
 //ParseDeploymentDescription parses a YAML file containing a deployment description. Returns the deployment or respective parsing errors, if the file was invalid.
-func ParseDeploymentDescription(yamlFile string) (*Deployment, error) {
+func ParseDeploymentDescription(yamlFile string) (*Model, error) {
 	deployment, err := readFromYamlFile(yamlFile)
 	if err != nil {
 		log.Printf("Could not parse service description, error was: %v", err)
@@ -120,14 +120,14 @@ func ParseDeploymentDescription(yamlFile string) (*Deployment, error) {
 	return deployment, nil
 }
 
-func readFromYamlFile(file string) (*Deployment, error) {
+func readFromYamlFile(file string) (*Model, error) {
 	fileHandle, err := os.Open(file)
 	if err != nil {
 		return nil, err
 	}
 
 	decoder := yaml.NewDecoder(fileHandle)
-	var deployment Deployment
+	var deployment Model
 
 	err = decoder.Decode(&deployment)
 	if err != nil {
@@ -137,7 +137,7 @@ func readFromYamlFile(file string) (*Deployment, error) {
 	return &deployment, nil
 }
 
-func validateDeploymentAndResolveRefs(deployment *Deployment) {
+func validateDeploymentAndResolveRefs(deployment *Model) {
 	//collect all envRefs in this
 	envMap := make(map[string]int)
 	//create map of serviceId -> service for quick lookup
@@ -202,9 +202,9 @@ func validateDeploymentAndResolveRefs(deployment *Deployment) {
 }
 
 //AddServicesToEnvMap is a helper function which recursively traverses the services and adds them to a map grouped by Environments of the services. The EnvRef is an identifier for a deployment environment where multiple Services might be co-located.
-func (d *Deployment) AddServicesToEnvMap() map[string][]*Service {
+func (m *Model) AddServicesToEnvMap() map[string][]*Service {
 	envMap := make(map[string][]*Service)
-	for _, c := range d.Services {
+	for _, c := range m.Services {
 		if _, exists := envMap[c.EnvironmentRef]; !exists {
 			envMap[c.EnvironmentRef] = make([]*Service, 0)
 		}
