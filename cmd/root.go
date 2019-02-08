@@ -63,24 +63,26 @@ func ExecuteBenchmark(cmd *cobra.Command, args []string) {
 	}
 	deployment, err := benchmark.ParseDeploymentDescription(serviceFile)
 	if err != nil {
-		log.Fatalf("Parsing of service map failed: %v", err)
+		log.Fatalf("Parsing of service descriptor file failed: %v", err)
 	}
+	log.Println("Parsed service descriptions successfully.")
 	prov, err := provider.NewStaticProvider(deploymentFile)
 	if err != nil {
 		log.Fatalf("Error parsing the deployment file: %v", err)
 	}
+	log.Println("Parsed static deployment successfully.")
 	prov.CreateEnvironments(deployment.Environments)
 	prov.AllocateServices(deployment.Services)
 	prov.AllocateSinks(deployment.Sinks)
 
-	b := benchmark.Setup(deployment, prov.SvcMap, prov.SinkMap, config)
+	b := benchmark.Setup(deployment, prov.SvcMap, prov.WorkerMap, prov.SinkMap, config)
 	b.StartBenchmark()
 }
 
 func initConfig() {
 	configFileDir, configFileName := filepath.Split(cfgFile)
 	fileNameNoExt := configFileName[:len(configFileName)-len(filepath.Ext(configFileName))]
-	log.Printf("filename: %s, dirname: %s, noext: %s", configFileName, configFileDir, fileNameNoExt)
+	//log.Printf("filename: %s, dirname: %s, noext: %s", configFileName, configFileDir, fileNameNoExt)
 	viper.SetConfigName(fileNameNoExt)
 	viper.AddConfigPath(configFileDir)
 	viper.AddConfigPath(".")
@@ -88,7 +90,7 @@ func initConfig() {
 	if err != nil {
 		serr, ok := err.(*viper.ConfigFileNotFoundError)
 		if !ok {
-			log.Printf("No config file: %v", err)
+			log.Printf("No config file: %v. Using command line params or defaults.", err)
 		} else {
 			log.Fatalf("Configuration error: %v", serr)
 		}

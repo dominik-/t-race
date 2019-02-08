@@ -16,6 +16,7 @@ type Provider interface {
 type StaticProvider struct {
 	EnvMap     map[string]string
 	SvcMap     map[string]string
+	WorkerMap  map[string]string
 	SinkMap    map[string]string
 	deployment *Deployment
 }
@@ -57,9 +58,11 @@ func (p *StaticProvider) CreateEnvironments(envRefs []string) {
 
 func (p *StaticProvider) AllocateServices(svcs []*benchmark.Service) {
 	p.SvcMap = make(map[string]string, len(svcs))
+	p.WorkerMap = make(map[string]string, len(svcs))
 	for i, s := range svcs {
 		//We ignore environments here;
 		p.SvcMap[s.Identifier] = p.deployment.WorkerAddresses[i].ServiceAddress
+		p.WorkerMap[s.Identifier] = p.deployment.WorkerAddresses[i].BenchmarkAddress
 	}
 }
 

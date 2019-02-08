@@ -26,14 +26,14 @@ type Worker struct {
 	ResultStream api.BenchmarkWorker_StartWorkerClient
 }
 
-func Setup(deployment *Model, serviceMap, sinkMap map[string]string, config *BenchmarkConfig) *Benchmark {
+func Setup(deployment *Model, serviceMap, workerMap, sinkMap map[string]string, config *BenchmarkConfig) *Benchmark {
 	workers := make([]*Worker, 0)
 
 	configs := MapDeploymentToWorkerConfigs(*deployment, *config, sinkMap, serviceMap)
 
 	for id, config := range configs {
 		workers = append(workers, &Worker{
-			Address: serviceMap[id],
+			Address: workerMap[id],
 			Config:  config,
 		})
 	}
@@ -72,7 +72,7 @@ func (benchmark *Benchmark) StartBenchmark() {
 		clientStub := api.NewBenchmarkWorkerClient(w.Connection)
 		clientStream, err := clientStub.StartWorker(context.Background(), w.Config)
 		if err != nil {
-			log.Printf("Couldn't call worker %v, error was : %v", w, err)
+			log.Fatalf("Couldn't call worker %v, error was : %v", w, err)
 		}
 		w.ResultStream = clientStream
 		finishedChan := make(chan bool, 1)
@@ -112,9 +112,10 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 					fileHandle.Close()
 					return
 				}
-				log.Printf("Error receiving result: %v", err)
+				log.Printf("Error receiving result from worker/service %s: %v", worker.Config.OperationName, err)
+			} else {
+				log.Printf("Received result package. Size: %d", len(resultPackage.GetResults()))
 			}
-			log.Printf("Received result package. Size: %d", len(resultPackage.GetResults()))
 			if resultPackage != nil {
 				for _, res := range resultPackage.GetResults() {
 					//TODO need different serialization here - we currently write to CSV, long-term there should be an interface for arbitrary storage
