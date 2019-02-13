@@ -10,9 +10,13 @@ services:
     context:
       tags:
         20: 40
+        20: 40
+        10: 128
         8: 60
       baggage:
         10: 30
+        20: 20
+        40: 128
   - id: svc02
     envRef: env01
     sinkRef: agent1
@@ -28,6 +32,10 @@ services:
   - id: svc03
     envRef: env01
     sinkRef: agent1
+    context:
+      tags:
+        20: 40
+        8: 60
   - id: svc04
     envRef: env01
     sinkRef: agent1
@@ -39,8 +47,8 @@ workUnits:
   - id: work01
     type: constant
     params:
-      value: 100
+      value: 50000 #50ms
   - id: work02
     type: constant
     params:
-      value: 10
+      value: 10000 #10ms
