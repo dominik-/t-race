@@ -1,20 +1,20 @@
 {
     "workers" : [
         { 
-            "benchmark" : "localhost:7880",
-            "service" : "localhost:9001"
+            "benchmark" : "localhost:7000",
+            "service" : "localhost:9000"
         },
         {
-            "benchmark": "localhost:7881",
+            "benchmark": "localhost:7001",
+            "service": "localhost:9001"
+        },
+        {
+            "benchmark": "localhost:7002",
             "service": "localhost:9002"
         },
         {
-            "benchmark": "localhost:7882",
+            "benchmark": "localhost:7003",
             "service": "localhost:9003"
-        },
-        {
-            "benchmark": "localhost:7883",
-            "service": "localhost:9004"
         }
     ],
     "sinks": [

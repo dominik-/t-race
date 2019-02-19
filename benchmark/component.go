@@ -49,7 +49,7 @@ func (r *relationshipType) UnmarshalYAML(unmarshal func(value interface{}) error
 	return nil
 }
 
-//Deployment describes a set of services (which form a dependency tree), a set of sinks (which are endpoints to which services send traces), and a set of environments
+//Model describes a set of services (which form a dependency tree), a set of sinks (which are endpoints to which services send traces), and a set of environments
 //(logical references to deployment environments, which are used by services and sinks to learn about collocation)
 type Model struct {
 	Name         string      `yaml:"name"`

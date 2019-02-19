@@ -1,4 +1,4 @@
-version: '3'
+version: "3.2"
 
 services:
     jaeger-agent:
@@ -53,5 +53,17 @@ services:
         - tracer-backend
       depends_on:
         - cassandra
+
+    prometheus:
+      image: prom/prometheus
+      networks:
+        - tracer-backend
+      volumes:
+        - type: bind
+          source: ./prometheus.yml
+          target: /etc/prometheus/prometheus.yml
+      ports:
+        - "9090:9090"
+
 networks:
   tracer-backend:

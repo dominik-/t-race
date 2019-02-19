@@ -2,12 +2,13 @@ package benchmark
 
 import (
 	"context"
-	"encoding/csv"
 	"io"
 	"log"
 	"os"
 	"strconv"
 	"time"
+
+	"github.com/gocarina/gocsv"
 
 	api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
 	"google.golang.org/grpc"
@@ -97,8 +98,7 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 	if err != nil {
 		log.Printf("Couldn't create output file, reason: %v", err)
 	}
-	writer := csv.NewWriter(fileHandle)
-	writer.Write([]string{"SpanId", "SpanCreationBeginTime", "SpanCreationEndTime", "SpanFinishBeginTime", "SpanFinishEndTime"})
+	defer fileHandle.Close()
 	ticker := time.NewTicker(5 * time.Second)
 	for {
 		select {
@@ -108,24 +108,16 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 			resultPackage, err := worker.ResultStream.Recv()
 			if err != nil {
 				if err == io.EOF {
-					writer.Flush()
-					fileHandle.Close()
 					return
 				}
 				log.Printf("Error receiving result from worker/service %s: %v", worker.Config.OperationName, err)
 			} else {
-				log.Printf("Received result package. Size: %d", len(resultPackage.GetResults()))
+				log.Printf("Received result package from worker/service %s. Size: %d", worker.Config.OperationName, len(resultPackage.GetResults()))
 			}
 			if resultPackage != nil {
-				for _, res := range resultPackage.GetResults() {
-					//TODO need different serialization here - we currently write to CSV, long-term there should be an interface for arbitrary storage
-					resArray := []int64{res.SpanId, res.TotalSpanLength}
-					writer.Write(intToStringArray(resArray))
-				}
+				gocsv.MarshalFile(resultPackage.GetResults(), fileHandle)
 			}
 		case <-finishedChannel:
-			writer.Flush()
-			fileHandle.Close()
 			return
 		}
 	}
