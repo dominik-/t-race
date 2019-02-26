@@ -2,7 +2,6 @@ services:
   - id: svc01
     envRef: env01
     sinkRef: agent1
-    finalWork: work01
     units:
       - work: work02
         svc: svc02
@@ -32,6 +31,7 @@ services:
   - id: svc03
     envRef: env01
     sinkRef: agent1
+    finalWork: work02
     context:
       tags:
         20: 40

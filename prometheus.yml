@@ -16,6 +16,3 @@ scrape_configs:
   # static configs for jaeger agent, collector; query: 'jaeger-query:16686'
   static_configs:
   - targets: ['jaeger-agent:5778', 'jaeger-collector:14268']
-    labels:
-      my:   label
-      your: label
