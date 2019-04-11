@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"gopkg.in/yaml.v2"
 )
 
@@ -149,7 +149,7 @@ func validateDeploymentAndResolveRefs(deployment *Model) {
 		} else {
 			envMap[c.EnvironmentRef] = 1
 		}
-		//make the first service the root service; pretty hacky - should usually traverse all services and mark those without predecessor.
+		//TODO: right now we make the first service the root service; should traverse all services and mark those without predecessor as root.
 		if i == 0 {
 			c.IsRoot = true
 		}

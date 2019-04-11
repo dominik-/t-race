@@ -2,38 +2,10 @@ package cmd
 
 import (
 	"fmt"
-	"log"
 	"os"
-	"path/filepath"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/benchmark"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/provider"
-)
-
-func init() {
-	cobra.OnInitialize(initConfig)
-	rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "t-race", "Config file name. Can be YAML, JSON or TOML format.")
-	rootCmd.PersistentFlags().StringP("services", "s", "services.yaml", "Service descriptor file name. Must be a YAML file.")
-	rootCmd.PersistentFlags().Int64P("runtime", "r", 60, "The runtime of the benchmark in seconds.")
-	rootCmd.PersistentFlags().Int64P("baselineTP", "t", 10, "The target throughput per second, that arrives at the root component.")
-	rootCmd.PersistentFlags().String("resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
-	rootCmd.PersistentFlags().String("deploymentFile", "deployment.json", "File that contains a static deployment of workers and sinks.")
-	bindToViper("services", rootCmd)
-	bindToViper("runtime", rootCmd)
-	bindToViper("baselineTP", rootCmd)
-	bindToViper("resultDirPrefix", rootCmd)
-	bindToViper("deploymentFile", rootCmd)
-}
-
-var (
-	cfgFile         string
-	serviceFile     string
-	baseThroughput  int64
-	runtime         int64
-	resultDirPrefix string
-	deploymentFile  string
 )
 
 func bindToViper(flagName string, cmd *cobra.Command) {
@@ -42,10 +14,9 @@ func bindToViper(flagName string, cmd *cobra.Command) {
 }
 
 var rootCmd = &cobra.Command{
-	Use:   "tracer-benchmarks",
+	Use:   "t-race",
 	Short: "Benchmarking tool for distributed tracing systems",
-	Long:  `Coordinator component for TRace, a benchmarking tool for distributed tracing systems.`,
-	Run:   ExecuteBenchmark,
+	Long:  `t-race is a distributed workload generator for distributed tracing systems.`,
 }
 
 func Execute() {
@@ -53,51 +24,4 @@ func Execute() {
 		fmt.Println(err)
 		os.Exit(1)
 	}
-}
-
-func ExecuteBenchmark(cmd *cobra.Command, args []string) {
-	config := &benchmark.BenchmarkConfig{
-		Throughput:      baseThroughput,
-		Runtime:         runtime,
-		ResultDirPrefix: resultDirPrefix,
-	}
-	deployment, err := benchmark.ParseDeploymentDescription(serviceFile)
-	if err != nil {
-		log.Fatalf("Parsing of service descriptor file failed: %v", err)
-	}
-	log.Println("Parsed service descriptions successfully.")
-	prov, err := provider.NewStaticProvider(deploymentFile)
-	if err != nil {
-		log.Fatalf("Error parsing the deployment file: %v", err)
-	}
-	log.Println("Parsed static deployment successfully.")
-	prov.CreateEnvironments(deployment.Environments)
-	prov.AllocateServices(deployment.Services)
-	prov.AllocateSinks(deployment.Sinks)
-
-	b := benchmark.Setup(deployment, prov.SvcMap, prov.WorkerMap, prov.SinkMap, config)
-	b.StartBenchmark()
-}
-
-func initConfig() {
-	configFileDir, configFileName := filepath.Split(cfgFile)
-	fileNameNoExt := configFileName[:len(configFileName)-len(filepath.Ext(configFileName))]
-	//log.Printf("filename: %s, dirname: %s, noext: %s", configFileName, configFileDir, fileNameNoExt)
-	viper.SetConfigName(fileNameNoExt)
-	viper.AddConfigPath(configFileDir)
-	viper.AddConfigPath(".")
-	err := viper.ReadInConfig()
-	if err != nil {
-		serr, ok := err.(*viper.ConfigFileNotFoundError)
-		if !ok {
-			log.Printf("No config file: %v. Using command line params or defaults.", err)
-		} else {
-			log.Fatalf("Configuration error: %v", serr)
-		}
-	}
-	serviceFile = viper.GetString("services")
-	baseThroughput = viper.GetInt64("baselineTP")
-	runtime = viper.GetInt64("runtime")
-	resultDirPrefix = viper.GetString("resultDirPrefix")
-	deploymentFile = viper.GetString("deploymentFile")
 }

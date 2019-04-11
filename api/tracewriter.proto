@@ -1,0 +1,68 @@
+syntax = "proto3";
+package api;
+
+import "google/protobuf/timestamp.proto";
+
+service BenchmarkWorker {
+    rpc StartWorker(WorkerConfiguration) returns (stream ResultPackage) {}
+    rpc Call(Empty) returns (Empty) {}
+}
+
+message WorkerConfiguration {
+    string worker_id = 1;
+    string operation_name = 2;
+    //root indicates whether the worker is generating load directly and independently (root=true), or listens to requests (through the Call method).
+    bool root = 3;
+    int64 runtime_seconds = 4;
+    int64 target_throughput = 5;
+    //the sink is the backend address to send traces to, i.e. an endpoint of an opentracing-compatible tracer
+    string sink_host_port = 6;
+    ContextTemplate context = 7;
+    //a final unit of local "work", also used if no subsequent calls are done by this worker
+    Work work_final = 8;
+    repeated Unit units = 9;
+}
+
+//Unit captures a request-response interaction with another emulated service.
+message Unit {
+    RelationshipType rel_type = 1;
+    //This is sampled and waited for before the call is dispatched to the next worker listening at invoked_host_port.
+    Work work_before = 2;
+    string invoked_host_port = 3;
+}
+
+message Work {
+    string dist_type = 1;
+    map<string, double> parameters = 2;
+}
+
+message TagTemplate {
+    int64 key_byte_length = 1;
+    int64 value_byte_length = 2;
+}
+
+message Result {
+    bytes span_id = 1;
+    bytes trace_id = 2;
+    google.protobuf.Timestamp start_time = 3;
+    google.protobuf.Timestamp finish_time = 4;
+}
+
+message ContextTemplate {
+    repeated TagTemplate tags = 1;
+    repeated TagTemplate baggage = 2;
+}
+
+message ResultPackage {
+    string worker_id = 1;
+    string environment_id = 2;
+    repeated Result results = 3;
+}
+
+message Empty {
+}
+
+enum RelationshipType {
+    CHILD = 0;
+    FOLLOWING = 1;
+}

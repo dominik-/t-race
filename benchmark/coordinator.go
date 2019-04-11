@@ -10,7 +10,7 @@ import (
 
 	"github.com/gocarina/gocsv"
 
-	api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
+	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"google.golang.org/grpc"
 )
 

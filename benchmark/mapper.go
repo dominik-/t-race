@@ -1,6 +1,6 @@
 package benchmark
 
-import api "gitlab.tubit.tu-berlin.de/dominik-ernst/trace-writer-api"
+import "gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 
 func MapDeploymentToWorkerConfigs(d Model, b BenchmarkConfig, sinks, services map[string]string) map[string]*api.WorkerConfiguration {
 	workers := make(map[string]*api.WorkerConfiguration, len(d.Services))
