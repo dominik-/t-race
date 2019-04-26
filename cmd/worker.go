@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
 
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
@@ -26,25 +28,31 @@ var workerCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(workerCmd)
 	cobra.OnInitialize(initViperConfigWorker)
-	rootCmd.PersistentFlags().StringVar(&workerCfgFile, "worker", "tbench-worker", "Config file name. Can be YAML, JSON or TOML format.")
-	rootCmd.PersistentFlags().IntVarP(&benchmarkPort, "benchmarkPort", "b", 7000, "Port for the grpc server to receive benchmark configs.")
-	rootCmd.PersistentFlags().IntVarP(&servicePort, "servicePort", "p", 9000, "Port for the grpc server to act within a service dependency graph.")
-	rootCmd.PersistentFlags().StringVar(&samplingType, "samplingType", "probabilistic", "Sampling strategy type to implement at the worker. Depends on tracer. For Jaeger: const, remote, probabilistic, ratelimiting, lowerbound")
-	rootCmd.PersistentFlags().Float64Var(&samplingParam, "samplingParam", 0.1, "Parameter for sampling type. Depends on type.")
+	workerCmd.PersistentFlags().StringVar(&workerCfgFile, "worker", "tbench-worker", "Config file name. Can be YAML, JSON or TOML format.")
+	workerCmd.PersistentFlags().IntVarP(&benchmarkPort, "benchmarkPort", "b", 7000, "Port for the grpc server to receive benchmark configs.")
+	workerCmd.PersistentFlags().IntVarP(&servicePort, "servicePort", "p", 9000, "Port for the grpc server to act within a service dependency graph.")
+	workerCmd.PersistentFlags().StringVar(&samplingType, "samplingType", "probabilistic", "Sampling strategy type to implement at the worker. Depends on tracer. For Jaeger: const, remote, probabilistic, ratelimiting, lowerbound")
+	workerCmd.PersistentFlags().Float64Var(&samplingParam, "samplingParam", 0.1, "Parameter for sampling type. Depends on type.")
+	workerCmd.PersistentFlags().IntVar(&prometheusPort, "prometheusPort", 8080, "Port for the endpoint to scrape prometheus metrics from. The default /metrics path is used.")
+	workerCmd.PersistentFlags().BoolVar(&exportPrometheus, "exportPrometheus", true, "Whether to collect prometheus metrics or not.")
 	viper.SetEnvPrefix("worker")
 	viper.AutomaticEnv()
-	bindToViper("benchmarkPort", rootCmd)
-	bindToViper("servicePort", rootCmd)
-	bindToViper("samplingType", rootCmd)
-	bindToViper("samplingParam", rootCmd)
+	bindToViper("benchmarkPort", workerCmd)
+	bindToViper("servicePort", workerCmd)
+	bindToViper("samplingType", workerCmd)
+	bindToViper("samplingParam", workerCmd)
+	bindToViper("prometheusPort", workerCmd)
+	bindToViper("exportPrometheus", workerCmd)
 }
 
 var (
-	workerCfgFile string
-	benchmarkPort int
-	servicePort   int
-	samplingType  string
-	samplingParam float64
+	workerCfgFile    string
+	benchmarkPort    int
+	servicePort      int
+	samplingType     string
+	samplingParam    float64
+	prometheusPort   int
+	exportPrometheus bool
 )
 
 func StartWorker(cmd *cobra.Command, args []string) {
@@ -52,6 +60,11 @@ func StartWorker(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
+	listenerHttp, err := net.Listen("tcp", fmt.Sprintf(":%d", prometheusPort))
+	if err != nil {
+		log.Fatalf("failed to listen: %v", err)
+	}
+	http.Handle("/metrics", promhttp.Handler())
 	/* // Read cert and key file
 	backendCert, err := ioutil.ReadFile("/certs/tls.crt")
 	if err != nil {
@@ -83,9 +96,12 @@ func StartWorker(cmd *cobra.Command, args []string) {
 	sigTermRecv := make(chan os.Signal, 1)
 	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)
 	go server.Serve(listener)
+	go http.Serve(listenerHttp, nil)
 	//wait for external signal to shut down
 	<-sigTermRecv
+	listenerHttp.Close()
 	server.Stop()
+	listener.Close()
 }
 
 func initViperConfigWorker() {
@@ -107,4 +123,6 @@ func initViperConfigWorker() {
 	servicePort = viper.GetInt("servicePort")
 	samplingType = viper.GetString("samplingType")
 	samplingParam = viper.GetFloat64("samplingParam")
+	prometheusPort = viper.GetInt("prometheusPort")
+	exportPrometheus = viper.GetBool("exportPrometheus")
 }

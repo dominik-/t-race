@@ -11,6 +11,7 @@ import (
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 
 	jaegercfg "github.com/uber/jaeger-client-go/config"
+	"github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -61,8 +62,9 @@ func (sg *OpenTracingSpanGenerator) GetResultsChannel() chan *api.Result {
 	return sg.ResultsChannel
 }
 
-// InitTracer returns an instance of a Tracer that samples 100% of traces and logs all spans to stdout.
+// InitTracer returns an instance of a Tracer that logs sampled Spans to stdout the given sinkAddress. The tracer is also reporting prometheus metrics.
 func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam float64) (opentracing.Tracer, io.Closer, error) {
+	metricsFactory := prometheus.New()
 	tracerConfig := jaegercfg.Configuration{
 		ServiceName: serviceName,
 		Sampler: &jaegercfg.SamplerConfig{
@@ -74,7 +76,7 @@ func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam
 			LogSpans:           true,
 		},
 	}
-	return tracerConfig.NewTracer()
+	return tracerConfig.NewTracer(jaegercfg.Metrics(metricsFactory))
 }
 
 func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, closer io.Closer, config *api.WorkerConfiguration) SpanGenerator {
@@ -93,10 +95,6 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, closer io.Closer, co
 	securityOption := grpc.WithInsecure()
 	// Establish connections to all following workers.
 	for _, unit := range config.Units {
-		//TODO: is this done right to create traces?
-		/* conn, err := grpc.Dial(unit.InvokedHostPort, securityOption,
-			grpc.WithUnaryInterceptor(otgrpc.OpenTracingClientInterceptor(generator.Tracer, otgrpc.SpanDecorator(generator.GetClientDecorator))),
-		) */
 		conn, err := grpc.Dial(unit.InvokedHostPort, securityOption)
 		if err != nil {
 			log.Printf("Couldnt connect to hostport of unit: %v, error was: %v\n", unit, err)
@@ -132,24 +130,14 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, closer io.Closer, co
 	return generator
 }
 
-//Deprecated: we don't use the generator anymore, spans, tags and baggage are created directly.
-func (sg *OpenTracingSpanGenerator) GetClientDecorator(span opentracing.Span, method string, req, resp interface{}, grpcError error) {
-	for tagKey, tagValue := range sg.Tags {
-		span.SetTag(tagKey, tagValue)
-	}
-	for tagKey, tagValue := range sg.Baggage {
-		span.SetBaggageItem(tagKey, tagValue)
-	}
-}
-
 func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporters []ResultReporter) bool {
-	//get SpanContext from golang Context
-	//remoteClientSpan := opentracing.SpanFromContext(parent)
+	//get grpc metadata from golang Context
 	md, ok := metadata.FromIncomingContext(parent)
 	if !ok {
 		md = metadata.New(nil)
 	}
-	//TODO create result and append result data over the call
+	//TODO create result of trace generation and append result data to reporter
+	//extract trace context from grpc metadata
 	remoteContext, err := sg.Tracer.Extract(opentracing.HTTPHeaders, metadataReaderWriter{md})
 	//create child relationship to client span - TODO: does that always make sense?
 	var serverSpan opentracing.Span
@@ -166,19 +154,15 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 		serverSpan = sg.Tracer.StartSpan(sg.ServiceName+"-parent", option)
 		ctx = opentracing.ContextWithSpan(parent, serverSpan)
 	}
-	//we add this services tags and baggage once
+	//we add this service's tags and baggage
 	for tagKey, tagValue := range sg.Tags {
 		serverSpan.SetTag(tagKey, tagValue)
 	}
 	for tagKey, tagValue := range sg.Baggage {
 		serverSpan.SetBaggageItem(tagKey, tagValue)
 	}
-
+	//Generate spans for subsequent calls.
 	for i, unit := range sg.Units {
-		//Step 1: wait for internal work emulation before each call; TODO: how long does this type check take? probably bad to do it every call.
-
-		//Step 2: call successor
-		//TODO: stuff is added automatically by the unary interceptor specified upon creation of the GRPC client; maybe we need to do our own injection at some point.
 		//Step 1: create client-side span for calling the successor service, including relationship to current context.
 		var relOption opentracing.SpanReference
 		switch unit.Unit.GetRelType() {
@@ -224,7 +208,7 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	}
 	//Finish parent span
 	serverSpan.Finish()
-	//TODO return a result! Report the result to all reporters? Currently reports are not used here.
+	//TODO return a result! Report the result to all reporters? Currently reporters are not used here.
 	return true
 }
 

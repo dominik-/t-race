@@ -44,9 +44,9 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	if err != nil {
 		log.Fatalf("Couldn't create tracer with given config. Error was: %v", err)
 	}
-	w.Generator = NewOpenTracingSpanGenerator(tracer, closer, config)
 	doneChannel := make(chan bool, 1)
 	if config.Root {
+		w.Generator = NewOpenTracingSpanGenerator(tracer, closer, config)
 		doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, calculateIntervalByThroughput(config.TargetThroughput), w.Reporters...)
 	}
 	//TODO: Ideally, the else case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
