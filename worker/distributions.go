@@ -9,9 +9,14 @@ import (
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 )
 
+var src = rand.NewSource(time.Now().UnixNano())
+
 func init() {
 	distributionRegistry = make(map[string]DistributionSampler)
 	distributionRegistry["constant"] = &StaticDistribution{}
+	distributionRegistry["gaussian"] = &GaussianDistribution{
+		randomizer: rand.New(src),
+	}
 	//rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
@@ -21,8 +26,6 @@ const (
 	letterIdxMask = 1<<letterIdxBits - 1 // All 1-bits, as many as letterIdxBits
 	letterIdxMax  = 63 / letterIdxBits   // # of letter indices fitting in 63 bits
 )
-
-var src = rand.NewSource(time.Now().UnixNano())
 
 //RandStringWithLength implements random string generation based on https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-go
 func RandStringWithLength(n int64) string {
@@ -52,23 +55,24 @@ type DistributionIndex struct {
 	RNG        *rand.Rand
 	Wrapper    DistributionSampler
 }
-type StaticDistribution struct {
-	Value int64
-}
 
 type NoDistribution struct {
 }
 
-func (sd *NoDistribution) SetParameters(values map[string]float64) {
+func (nd *NoDistribution) SetParameters(values map[string]float64) {
 	//do nothing
 }
 
-func (sd *NoDistribution) GetNextValue() time.Duration {
+func (nd *NoDistribution) GetNextValue() time.Duration {
 	return time.Duration(0)
 }
 
-func (sd *NoDistribution) SetRNGSeed(seed int64) {
+func (nd *NoDistribution) SetRNGSeed(seed int64) {
 	//do nothing
+}
+
+type StaticDistribution struct {
+	Value int64
 }
 
 func (sd *StaticDistribution) SetParameters(values map[string]float64) {
@@ -83,6 +87,7 @@ func (sd *StaticDistribution) SetRNGSeed(seed int64) {
 	//do nothing
 }
 
+// DistributionSampler describes a statistic distribution and allows setting parameters (based on YAML configs) and a seed for that distribution.
 type DistributionSampler interface {
 	SetParameters(map[string]float64)
 	GetNextValue() time.Duration
@@ -105,11 +110,22 @@ func LookupDistribution(work *api.Work) (DistributionSampler, error) {
 	return dist, nil
 }
 
-type GaussianWork struct {
-	Mean   float64 `yaml:"mean"`
-	StdDev float64 `yaml:"stddev"`
+type GaussianDistribution struct {
+	randomizer *rand.Rand
+	mean       float64 `yaml:"mean"`
+	stdDev     float64 `yaml:"stddev"`
 }
 
-func (w *GaussianWork) GetNextValue() int64 {
-	return int64(rand.NormFloat64()*w.StdDev + w.Mean)
+func (gd *GaussianDistribution) GetNextValue() time.Duration {
+	return time.Duration(gd.randomizer.NormFloat64()*gd.stdDev+gd.mean) * time.Microsecond
+}
+
+func (gd *GaussianDistribution) SetParameters(values map[string]float64) {
+	//TODO should probably add some parsing/validation
+	gd.mean = values["mean"]
+	gd.stdDev = values["stddev"]
+}
+
+func (gd *GaussianDistribution) SetRNGSeed(seed int64) {
+	gd.randomizer = rand.New(rand.NewSource(seed))
 }
