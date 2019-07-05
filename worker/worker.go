@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-
+	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"google.golang.org/grpc"
 )
@@ -19,6 +19,7 @@ import (
 type Worker struct {
 	Generator        SpanGenerator
 	Reporters        []ResultReporter
+	TraceCounter     prometheus.Counter
 	Config           *api.WorkerConfiguration
 	ServicePort      int
 	SamplingStrategy string
@@ -126,7 +127,7 @@ func calculateIntervalByThroughput(targetThroughput int64) time.Duration {
 		targetThroughput = 0
 	}
 	if targetThroughput == 0 {
-		log.Println("Target throughput of 0 or above maximum (1mio). Setting throughput to maximum.")
+		log.Println("Target throughput of 0 or above maximum (1mio). Setting throughput to 1mio reqs/s.")
 		return 1 * time.Microsecond
 	}
 	return time.Duration(1000000/targetThroughput) * time.Microsecond

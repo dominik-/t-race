@@ -8,16 +8,17 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 
 	jaegercfg "github.com/uber/jaeger-client-go/config"
-	"github.com/uber/jaeger-lib/metrics/prometheus"
+	jaegerprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
 type OpenTracingSpanGenerator struct {
-	Counter        int64
+	Counter        prometheus.Counter
 	Tracer         opentracing.Tracer
 	Closer         io.Closer
 	ResultsChannel chan *api.Result
@@ -64,7 +65,8 @@ func (sg *OpenTracingSpanGenerator) GetResultsChannel() chan *api.Result {
 
 // InitTracer returns an instance of a Tracer that logs sampled Spans to stdout the given sinkAddress. The tracer is also reporting prometheus metrics.
 func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam float64) (opentracing.Tracer, io.Closer, error) {
-	metricsFactory := prometheus.New()
+	//TODO maybe remove default jaeger metrics reporting?
+	metricsFactory := jaegerprom.New()
 	tracerConfig := jaegercfg.Configuration{
 		ServiceName: serviceName,
 		Sampler: &jaegercfg.SamplerConfig{
@@ -125,6 +127,15 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, closer io.Closer, co
 			generator.Baggage[RandStringWithLength(tagTemplate.KeyByteLength)] = RandStringWithLength(tagTemplate.ValueByteLength)
 		}
 	}
+
+	generator.Counter = prometheus.NewCounter(prometheus.CounterOpts{
+		Name:      "worker_traces_created_total",
+		Namespace: "trace",
+		Subsystem: config.OperationName,
+	})
+
+	generator.ServiceName = config.OperationName
+
 	generator.ResultsChannel = make(chan *api.Result)
 
 	return generator
@@ -180,7 +191,7 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 			//if the Distribution cannot be parsed to the NoDistribution, wait for the sampled amount of time.
 			<-time.NewTimer(unit.WorkSampler.GetNextValue()).C
 		}
-		//Step 3a: Use context (incoming = outgoing here) and create a metadata writer;
+		//Step 3a: Use context (incoming = outgoing from calling service!) and create a metadata writer;
 		md, ok := metadata.FromOutgoingContext(ctx)
 		if !ok {
 			md = metadata.New(nil)
@@ -206,6 +217,8 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	if _, parsed := sg.WorkFinalDist.(*NoDistribution); !parsed {
 		<-time.NewTimer(sg.WorkFinalDist.GetNextValue()).C
 	}
+	//increment prometheus counter metric
+	sg.Counter.Inc()
 	//Finish parent span
 	serverSpan.Finish()
 	//TODO return a result! Report the result to all reporters? Currently reporters are not used here.
