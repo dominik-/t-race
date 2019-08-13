@@ -9,7 +9,7 @@ import (
 )
 
 func bindToViper(flagName string, cmd *cobra.Command) {
-	viper.BindPFlag(flagName, cmd.PersistentFlags().Lookup(flagName))
+	viper.BindPFlag(flagName, cmd.Flags().Lookup(flagName))
 	viper.BindEnv(flagName)
 }
 

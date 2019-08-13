@@ -12,7 +12,6 @@ import (
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 
 	jaegercfg "github.com/uber/jaeger-client-go/config"
-	jaegerprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
@@ -63,10 +62,8 @@ func (sg *OpenTracingSpanGenerator) GetResultsChannel() chan *api.Result {
 	return sg.ResultsChannel
 }
 
-// InitTracer returns an instance of a Tracer that logs sampled Spans to stdout the given sinkAddress. The tracer is also reporting prometheus metrics.
+// InitTracer returns an instance of a Tracer that logs sampled Spans to stdout the given sinkAddress.
 func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam float64) (opentracing.Tracer, io.Closer, error) {
-	//TODO maybe remove default jaeger metrics reporting?
-	metricsFactory := jaegerprom.New()
 	tracerConfig := jaegercfg.Configuration{
 		ServiceName: serviceName,
 		Sampler: &jaegercfg.SamplerConfig{
@@ -78,7 +75,7 @@ func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam
 			LogSpans:           true,
 		},
 	}
-	return tracerConfig.NewTracer(jaegercfg.Metrics(metricsFactory))
+	return tracerConfig.NewTracer()
 }
 
 func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, closer io.Closer, config *api.WorkerConfiguration) SpanGenerator {

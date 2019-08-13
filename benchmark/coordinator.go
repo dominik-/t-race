@@ -14,6 +14,8 @@ import (
 	"google.golang.org/grpc"
 )
 
+var resultDirFormat = "2006-01-02T150405"
+
 type Benchmark struct {
 	Name    string
 	Workers []*Worker
@@ -63,7 +65,7 @@ func Setup(deployment *Model, serviceMap, workerMap, sinkMap map[string]string, 
 func (benchmark *Benchmark) StartBenchmark() {
 	//start benchmark on all workers and keep receiving their results
 	//need to fork out into separate threads and write results to files/database
-	dirname := benchmark.Config.ResultDirPrefix + time.Now().Format(time.RFC3339)
+	dirname := benchmark.Config.ResultDirPrefix + time.Now().Format(resultDirFormat)
 	err := os.Mkdir(dirname, 0700)
 	if err != nil {
 		log.Printf("Couldn't create output file, reason: %v", err)
