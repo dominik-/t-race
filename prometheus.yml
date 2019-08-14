@@ -16,3 +16,11 @@ scrape_configs:
   # static configs for jaeger agent, collector; query: 'jaeger-query:16686'
   static_configs:
   - targets: ['jaeger-agent:5778', 'jaeger-collector:14268']
+- job_name: workers
+  honor_labels: true
+  # scrape_interval is defined by the configured global (15s).
+  # scrape_timeout is defined by the global default (10s).
+
+  # static configs for up to 4 workers running locally on a docker host!
+  static_configs:
+  - targets: ['host.docker.internal:9000', 'host.docker.internal:9001', 'host.docker.internal:9002', 'host.docker.internal:9003']

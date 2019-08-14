@@ -17,15 +17,16 @@ import (
 )
 
 type OpenTracingSpanGenerator struct {
-	Counter        prometheus.Counter
-	Tracer         opentracing.Tracer
-	Closer         io.Closer
-	ResultsChannel chan *api.Result
-	Units          []*GeneratedUnit
-	Tags           map[string]string
-	Baggage        map[string]string
-	WorkFinalDist  DistributionSampler
-	ServiceName    string
+	SpanCounter      *prometheus.CounterVec
+	SpanDurationHist prometheus.Histogram
+	Tracer           opentracing.Tracer
+	Closer           io.Closer
+	ResultsChannel   chan *api.Result
+	Units            []*GeneratedUnit
+	Tags             map[string]string
+	Baggage          map[string]string
+	WorkFinalDist    DistributionSampler
+	ServiceName      string
 }
 
 type GeneratedUnit struct {
@@ -78,12 +79,13 @@ func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam
 	return tracerConfig.NewTracer()
 }
 
-func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, closer io.Closer, config *api.WorkerConfiguration) SpanGenerator {
+func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, config *api.WorkerConfiguration, counter *prometheus.CounterVec, hist prometheus.Histogram) SpanGenerator {
 	// initialize empty generator
 	generator := &OpenTracingSpanGenerator{
-		Units:  make([]*GeneratedUnit, 0),
-		Tracer: tracer,
-		Closer: closer,
+		Units:            make([]*GeneratedUnit, 0),
+		Tracer:           tracer,
+		SpanCounter:      counter,
+		SpanDurationHist: hist,
 	}
 	var err error
 	// Create TLS credentials for grpc clients that skip root CA verification
@@ -125,14 +127,7 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, closer io.Closer, co
 		}
 	}
 
-	generator.Counter = prometheus.NewCounter(prometheus.CounterOpts{
-		Name:      "worker_traces_created_total",
-		Namespace: "trace",
-		Subsystem: config.OperationName,
-	})
-
 	generator.ServiceName = config.OperationName
-
 	generator.ResultsChannel = make(chan *api.Result)
 
 	return generator
@@ -150,6 +145,7 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	//create child relationship to client span - TODO: does that always make sense?
 	var serverSpan opentracing.Span
 	var ctx context.Context
+	spanStart := time.Now()
 	if err != nil && err == opentracing.ErrSpanContextNotFound {
 		//start local "parent" span
 		serverSpan = sg.Tracer.StartSpan(sg.ServiceName + "-parent")
@@ -157,12 +153,13 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	} else if err != nil {
 		log.Fatalf("Couldn't parse Span Context! Error was: %v", err)
 	} else {
-		//start local span with child relationship to parent from remote context
+		//start local span with child relationship to parent from remote context; note that this is always a "child" reference, as the parent is a "client span" from the caller specific to this service,
+		// which in turn has correctly mapped CHILD or FOLLOWS relationship to its parent.
 		option := opentracing.ChildOf(remoteContext)
 		serverSpan = sg.Tracer.StartSpan(sg.ServiceName+"-parent", option)
 		ctx = opentracing.ContextWithSpan(parent, serverSpan)
 	}
-	//we add this service's tags and baggage
+	//we add this service's tags and baggage before doing further calls
 	for tagKey, tagValue := range sg.Tags {
 		serverSpan.SetTag(tagKey, tagValue)
 	}
@@ -183,43 +180,51 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 		localClientSpan := sg.Tracer.StartSpan(clientSpanName, relOption)
 		//Update context with reference to new client Span
 		ctx = opentracing.ContextWithSpan(ctx, localClientSpan)
-		//Step 2: wait for internal work emulation before the actual call; TODO: how long does this type check take? bad to do it every call?
+		//Step 2: wait for internal work emulation before the actual call;
+		//if workBefore is nil, this check returns the NoDistribution, which means the call should be done in parallel to the previous one.
+		//TODO: how long does this type check take? bad to do it every call?
 		if _, parsed := unit.WorkSampler.(*NoDistribution); !parsed {
-			//if the Distribution cannot be parsed to the NoDistribution, wait for the sampled amount of time.
+			//if the Distribution cannot be parsed to the NoDistribution, wait for the sampled amount of time and make a "synchronous" remote call
 			<-time.NewTimer(unit.WorkSampler.GetNextValue()).C
-		}
-		//Step 3a: Use context (incoming = outgoing from calling service!) and create a metadata writer;
-		md, ok := metadata.FromOutgoingContext(ctx)
-		if !ok {
-			md = metadata.New(nil)
+			sg.DoRemoteCall(unit, ctx, localClientSpan)
 		} else {
-			md = md.Copy()
+			//if no workBefore is done, do "async" remote call
+			go sg.DoRemoteCall(unit, ctx, localClientSpan)
 		}
-		mdWriter := metadataReaderWriter{md}
-		//Step 3b: Inject the local span context with HTTP-Header-Format into the metadatawriter.
-		err := sg.Tracer.Inject(localClientSpan.Context(), opentracing.HTTPHeaders, mdWriter)
-		if err != nil {
-			log.Printf("Tracer.Inject() failed: %v", err)
-		}
-		//Step 4: Call the successor service and create a new Context including the metadata in GRPC wire format.
-		_, err = unit.UnitClient.Call(metadata.NewOutgoingContext(ctx, md), &api.Empty{})
-		//TODO currently we just return false for each failed request
-		if err != nil {
-			return false
-		}
-		//Step 5: Finish local client Span
-		localClientSpan.Finish()
 	}
 	//Do final work locally.
 	if _, parsed := sg.WorkFinalDist.(*NoDistribution); !parsed {
 		<-time.NewTimer(sg.WorkFinalDist.GetNextValue()).C
 	}
-	//increment prometheus counter metric
-	sg.Counter.Inc()
 	//Finish parent span
 	serverSpan.Finish()
+	//increment prometheus counter metric
+	sg.SpanCounter.WithLabelValues("parent").Inc()
+	sg.SpanDurationHist.Observe(float64(time.Since(spanStart).Nanoseconds()) / 1000.0)
 	//TODO return a result! Report the result to all reporters? Currently reporters are not used here.
 	return true
+}
+
+func (sg *OpenTracingSpanGenerator) DoRemoteCall(unit *GeneratedUnit, ctx context.Context, clientSpan opentracing.Span) {
+	//Step 3a: Use context ("outgoing" is from the perspective of the calling service!) and create a metadata writer;
+	md, ok := metadata.FromOutgoingContext(ctx)
+	if !ok {
+		md = metadata.New(nil)
+	} else {
+		md = md.Copy()
+	}
+	mdWriter := metadataReaderWriter{md}
+	//Step 3b: Inject the local span context with HTTP-Header-Format into the metadatawriter.
+	err := sg.Tracer.Inject(clientSpan.Context(), opentracing.HTTPHeaders, mdWriter)
+	if err != nil {
+		log.Printf("Tracer.Inject() failed: %v", err)
+	}
+	//Step 4: Call the successor service and create a new Context including the metadata in GRPC wire format.
+	//TODO to represent parallel calls to children, we need to enable async calls here and don't block for a result; what happens to this call context and finishing of the Span?
+	_, err = unit.UnitClient.Call(metadata.NewOutgoingContext(ctx, md), &api.Empty{})
+	//Step 5: Finish local client Span
+	clientSpan.Finish()
+	sg.SpanCounter.WithLabelValues("child").Inc()
 }
 
 //WriteSpansUntilExitSignal takes a SpanGenerator, an exitSignalChannel and reporters.

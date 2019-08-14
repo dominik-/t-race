@@ -30,10 +30,10 @@ func init() {
 	cobra.OnInitialize(initViperConfigWorker)
 	workerCmd.Flags().StringVar(&workerCfgFile, "worker", "tbench-worker", "Config file name. Can be YAML, JSON or TOML format.")
 	workerCmd.Flags().IntVarP(&benchmarkPort, "benchmarkPort", "b", 7000, "Port for the grpc server to receive benchmark configs.")
-	workerCmd.Flags().IntVarP(&servicePort, "servicePort", "p", 9000, "Port for the grpc server to act within a service dependency graph.")
+	workerCmd.Flags().IntVarP(&servicePort, "servicePort", "p", 8000, "Port for the grpc server to act within a service dependency graph.")
 	workerCmd.Flags().StringVar(&samplingType, "samplingType", "probabilistic", "Sampling strategy type to implement at the worker. Depends on tracer. For Jaeger: const, remote, probabilistic, ratelimiting, lowerbound")
 	workerCmd.Flags().Float64Var(&samplingParam, "samplingParam", 0.1, "Parameter for sampling type. Depends on type.")
-	workerCmd.Flags().IntVar(&prometheusPort, "prometheusPort", 8080, "Port for the endpoint to scrape prometheus metrics from. The default /metrics path is used.")
+	workerCmd.Flags().IntVar(&prometheusPort, "prometheusPort", 9000, "Port for the endpoint to scrape prometheus metrics from. The default /metrics path is used.")
 	workerCmd.Flags().BoolVar(&exportPrometheus, "exportPrometheus", true, "Whether to collect prometheus metrics or not.")
 	viper.SetEnvPrefix("worker")
 	viper.AutomaticEnv()
@@ -60,8 +60,8 @@ func StartWorker(cmd *cobra.Command, args []string) {
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	var listenerHTTPPrometheus net.Listener
 	if exportPrometheus {
+		//TODO this listener is never closed so far
 		listenerHTTPPrometheus, err := net.Listen("tcp", fmt.Sprintf(":%d", prometheusPort))
 		if err != nil {
 			log.Fatalf("failed to listen: %v", err)
@@ -102,7 +102,6 @@ func StartWorker(cmd *cobra.Command, args []string) {
 	go server.Serve(listener)
 	//wait for external signal to shut down
 	<-sigTermRecv
-	listenerHTTPPrometheus.Close()
 	server.Stop()
 	listener.Close()
 }

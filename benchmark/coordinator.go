@@ -82,8 +82,8 @@ func (benchmark *Benchmark) StartBenchmark() {
 		finishedChannels = append(finishedChannels, finishedChan)
 		go WriteResults(w, dirname, finishedChan)
 	}
-	//wait until benchmark is over, plus six seconds (results stream poll interval + 1)
 	<-time.NewTimer(time.Second * time.Duration(benchmark.Config.Runtime)).C
+	//we wait additional time to make sure we received all events.
 	toleranceDuration := 10 * time.Second
 	log.Printf("Runtime finished. Waiting %v for final benchmark results...", toleranceDuration)
 	<-time.NewTimer(toleranceDuration).C

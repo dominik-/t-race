@@ -19,11 +19,13 @@ import (
 type Worker struct {
 	Generator        SpanGenerator
 	Reporters        []ResultReporter
-	TraceCounter     prometheus.Counter
+	SpanCounter      *prometheus.CounterVec
+	SpanDurationHist prometheus.Histogram
 	Config           *api.WorkerConfiguration
 	ServicePort      int
 	SamplingStrategy string
 	SamplingParams   []float64
+	SetupDone        bool
 }
 
 func (w *Worker) GetTracer() opentracing.Tracer {
@@ -41,17 +43,41 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 
 	//Create sink (i.e. tracing backend) connection
 	tracer, closer, err := InitTracer(config.SinkHostPort, config.OperationName, w.SamplingStrategy, w.SamplingParams[0])
+	defer closer.Close()
 	// we can't go on if this didnt work
 	if err != nil {
 		log.Fatalf("Couldn't create tracer with given config. Error was: %v", err)
 	}
+	//Setup for prometheus metrics
+	if !w.SetupDone {
+		w.SpanCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
+			Name:      "spans_created_total",
+			Help:      "Spans created by this worker, partitioned by type (parent or child)",
+			Namespace: "worker",
+			Subsystem: config.OperationName,
+		}, []string{"type"})
+
+		w.SpanDurationHist = prometheus.NewHistogram(prometheus.HistogramOpts{
+			Namespace: "worker",
+			//Subsystem: config.OperationName,
+			Name:    "span_duration",
+			Help:    "A Histogram of Span durations",
+			Buckets: []float64{10000.0, 20000.0, 50000.0, 100000.0, 200000.0},
+		})
+		prometheus.MustRegister(w.SpanCounter)
+		prometheus.MustRegister(w.SpanDurationHist)
+		w.SetupDone = true
+	}
+
 	doneChannel := make(chan bool, 1)
-	w.Generator = NewOpenTracingSpanGenerator(tracer, closer, config)
+	w.Generator = NewOpenTracingSpanGenerator(tracer, config, w.SpanCounter, w.SpanDurationHist)
 	if config.Root {
+		//We create a new done channel here if this is a root service
+		//TODO: Ideally, the "default" case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
+		//indicating that the root-workers no longer send requests;
 		doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, calculateIntervalByThroughput(config.TargetThroughput), w.Reporters...)
 	}
-	//TODO: Ideally, the else case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
-	//indicating that the root-workers no longer send requests;
+
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", w.ServicePort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)

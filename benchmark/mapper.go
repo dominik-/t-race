@@ -14,6 +14,7 @@ func MapDeploymentToWorkerConfigs(d Model, b BenchmarkConfig, sinks, services ma
 			context = toSpanContext(svc.Context)
 		}
 		conf := &api.WorkerConfiguration{
+			WorkerId:         "worker-" + svc.Identifier,
 			OperationName:    svc.Identifier,
 			SinkHostPort:     sinks[svc.SinkRef],
 			Context:          context,
