@@ -110,7 +110,7 @@ WorkerLoop:
 					if config.Root {
 						log.Printf("Benchmark shut down forcefully after runtime plus tolerance of %v.\n", tolerance)
 					} else {
-						log.Printf("Worker shut down after runtime plus tolerance of %v.\n", tolerance)
+						log.Printf("Benchmark shut down after runtime plus tolerance of %v.\n", tolerance)
 					}
 
 					break WorkerLoop

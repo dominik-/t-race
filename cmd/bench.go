@@ -34,7 +34,7 @@ func init() {
 	benchCmd.Flags().Int64P("runtime", "r", 60, "The runtime of the benchmark in seconds.")
 	benchCmd.Flags().Int64P("baselineTP", "t", 10, "The target throughput per second, that arrives at the root component.")
 	benchCmd.Flags().String("resultDirPrefix", "results-", "Prefix for the directory, to which results are written. Defaults to \"results-\". The start time is always appended.")
-	benchCmd.Flags().String("deploymentFile", "deployment.json", "File that contains a static deployment of workers and sinks.")
+	benchCmd.Flags().StringP("deploymentFile", "d", "deployment.json", "File that contains a static deployment of workers and sinks.")
 	bindToViper("services", benchCmd)
 	bindToViper("runtime", benchCmd)
 	bindToViper("baselineTP", benchCmd)

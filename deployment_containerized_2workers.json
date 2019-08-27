@@ -1,0 +1,15 @@
+{
+    "workers" : [
+        { 
+            "benchmark" : "localhost:7000",
+            "service" : "host.docker.internal:8000"
+        },
+        {
+            "benchmark": "localhost:7001",
+            "service": "host.docker.internal:8001"
+        }
+    ],
+    "sinks": [
+        "host.docker.internal:6831"
+    ]
+}

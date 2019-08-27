@@ -3,19 +3,15 @@ package cmd
 import (
 	"fmt"
 	"log"
-	"net"
-	"net/http"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"syscall"
+	"time"
 
-	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/worker"
-	"google.golang.org/grpc"
 )
 
 var workerCmd = &cobra.Command{
@@ -56,54 +52,15 @@ var (
 )
 
 func StartWorker(cmd *cobra.Command, args []string) {
-	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", benchmarkPort))
-	if err != nil {
-		log.Fatalf("failed to listen: %v", err)
-	}
-	if exportPrometheus {
-		//TODO this listener is never closed so far
-		listenerHTTPPrometheus, err := net.Listen("tcp", fmt.Sprintf(":%d", prometheusPort))
-		if err != nil {
-			log.Fatalf("failed to listen: %v", err)
-		}
-		http.Handle("/metrics", promhttp.Handler())
-		go http.Serve(listenerHTTPPrometheus, nil)
-	}
-	/* // Read cert and key file
-	backendCert, err := ioutil.ReadFile("/certs/tls.crt")
-	if err != nil {
-		log.Fatalf("Couldn't read or parse certfile: %v", err)
-	}
-	backendKey, err := ioutil.ReadFile("/certs/tls.key")
-	if err != nil {
-		log.Fatalf("Couldn't read or parse keyfile: %v", err)
-	}
-	// Generate Certificate struct
-	cert, err := tls.X509KeyPair(backendCert, backendKey)
-	if err != nil {
-		log.Fatalf("failed to parse certificate: %v", err)
-	}
-	// Create credentials
-	creds := credentials.NewServerTLSFromCert(&cert)
-	// Use Credentials in gRPC server options
-	serverOption := grpc.Creds(creds) */
-	server := grpc.NewServer()
-	reporters := make([]worker.ResultReporter, 1)
-	reporters[0] = worker.NewBufferingReporter(50)
-	//we add an empty worker, except for reporters; everything else is configured once the worker receives a benchmark configuration
-	api.RegisterBenchmarkWorkerServer(server, &worker.Worker{
-		Reporters:        reporters,
-		ServicePort:      servicePort,
-		SamplingStrategy: samplingType,
-		SamplingParams:   []float64{samplingParam},
-	})
 	sigTermRecv := make(chan os.Signal, 1)
 	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)
-	go server.Serve(listener)
+	shutdown := worker.StartWorkerProcess(benchmarkPort, servicePort, prometheusPort, exportPrometheus, samplingType, samplingParam)
 	//wait for external signal to shut down
 	<-sigTermRecv
-	server.Stop()
-	listener.Close()
+	shutdown <- true
+	fmt.Println("Shutting down...")
+	<-time.NewTimer(time.Second * 2).C
+	os.Exit(0)
 }
 
 func initViperConfigWorker() {
