@@ -20,7 +20,7 @@ items:
           jaeger-infra: collector-pod
       spec:
         containers:
-        - image: jaegertracing/jaeger-collector:1.6.0
+        - image: jaegertracing/jaeger-collector:1.9
           name: jaeger-collector
           args: ["--config-file=/conf/collector.yaml"]
           ports:
@@ -92,7 +92,7 @@ items:
           jaeger-infra: query-pod
       spec:
         containers:
-        - image: jaegertracing/jaeger-query:1.6.0
+        - image: jaegertracing/jaeger-query:1.9
           name: jaeger-query
           args: ["--config-file=/conf/query.yaml"]
           ports:

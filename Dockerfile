@@ -17,5 +17,9 @@ WORKDIR /root/
 # Copy the Pre-built binary file from the previous stage
 COPY --from=builder /app/t-race .
 
+EXPOSE 7000
+EXPOSE 8000
+EXPOSE 9000
+
 # Command to run the executable
 ENTRYPOINT ["./t-race"] 

@@ -7,6 +7,8 @@ import (
 	"log"
 	"time"
 
+	"github.com/golang/protobuf/ptypes"
+
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
@@ -133,6 +135,23 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, config *api.WorkerCo
 	return generator
 }
 
+func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Time, span opentracing.Span) bool {
+	span.Finish()
+	finishTimeDelta := time.Since(startTime)
+	sg.SpanDurationHist.Observe(float64(finishTimeDelta.Nanoseconds() / 1000.0))
+	started, err := ptypes.TimestampProto(startTime)
+	finished, err := ptypes.TimestampProto(startTime.Add(finishTimeDelta))
+	if err != nil {
+		log.Printf("Couldn't convert timestamps to proto format.")
+		return false
+	}
+	sg.ResultsChannel <- &api.Result{
+		StartTime:  started,
+		FinishTime: finished,
+	}
+	return true
+}
+
 func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporters []ResultReporter) bool {
 	//get grpc metadata from golang Context
 	md, ok := metadata.FromIncomingContext(parent)
@@ -196,11 +215,9 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	if _, parsed := sg.WorkFinalDist.(*NoDistribution); !parsed {
 		<-time.NewTimer(sg.WorkFinalDist.GetNextValue()).C
 	}
-	//Finish parent span
-	serverSpan.Finish()
-	//increment prometheus counter metric
-	sg.SpanCounter.WithLabelValues("parent").Inc()
-	sg.SpanDurationHist.Observe(float64(time.Since(spanStart).Nanoseconds()) / 1000.0)
+
+	//Finish parent span and do reporting etc.
+	sg.finishAndReportTimedOTSpan(spanStart, serverSpan)
 	//TODO return a result! Report the result to all reporters? Currently reporters are not used here.
 	return true
 }

@@ -43,11 +43,11 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 
 	//Create sink (i.e. tracing backend) connection
 	tracer, closer, err := InitTracer(config.SinkHostPort, config.OperationName, w.SamplingStrategy, w.SamplingParams[0])
-	defer closer.Close()
 	// we can't go on if this didnt work
 	if err != nil {
 		log.Fatalf("Couldn't create tracer with given config. Error was: %v", err)
 	}
+	defer closer.Close()
 	//Setup for prometheus metrics
 	if !w.SetupDone {
 		w.SpanCounter = prometheus.NewCounterVec(prometheus.CounterOpts{

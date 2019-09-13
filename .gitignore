@@ -1,6 +1,9 @@
 /.idea
 /vendor
 /results-*
+/provider/.terraform
+/provider/*.tfstate
+/provider/*.tfstate.backup
 
 tracer-benchmarks
 *.exe

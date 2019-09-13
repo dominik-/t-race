@@ -17,7 +17,7 @@ items:
       spec:
         containers:
         - name: agent-instance
-          image: jaegertracing/jaeger-agent:1.6.0
+          image: jaegertracing/jaeger-agent:1.9
           args: ["--config-file=/conf/agent.yaml"]
           volumeMounts:
           - name: jaeger-configuration-volume
