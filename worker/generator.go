@@ -19,7 +19,7 @@ import (
 )
 
 type OpenTracingSpanGenerator struct {
-	SpanCounter      *prometheus.CounterVec
+	TraceCounter     int64
 	SpanDurationHist prometheus.Histogram
 	Tracer           opentracing.Tracer
 	Closer           io.Closer
@@ -81,12 +81,12 @@ func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam
 	return tracerConfig.NewTracer()
 }
 
-func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, config *api.WorkerConfiguration, counter *prometheus.CounterVec, hist prometheus.Histogram) SpanGenerator {
+func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, config *api.WorkerConfiguration, hist prometheus.Histogram) SpanGenerator {
 	// initialize empty generator
 	generator := &OpenTracingSpanGenerator{
+		TraceCounter:     0,
 		Units:            make([]*GeneratedUnit, 0),
 		Tracer:           tracer,
-		SpanCounter:      counter,
 		SpanDurationHist: hist,
 	}
 	var err error
@@ -130,12 +130,12 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, config *api.WorkerCo
 	}
 
 	generator.ServiceName = config.OperationName
-	generator.ResultsChannel = make(chan *api.Result)
+	generator.ResultsChannel = make(chan *api.Result, 1000)
 
 	return generator
 }
 
-func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Time, span opentracing.Span) bool {
+func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Time, span opentracing.Span, childSpanCount int64) error {
 	span.Finish()
 	finishTimeDelta := time.Since(startTime)
 	sg.SpanDurationHist.Observe(float64(finishTimeDelta.Nanoseconds() / 1000.0))
@@ -143,13 +143,15 @@ func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Ti
 	finished, err := ptypes.TimestampProto(startTime.Add(finishTimeDelta))
 	if err != nil {
 		log.Printf("Couldn't convert timestamps to proto format.")
-		return false
+		return err
 	}
 	sg.ResultsChannel <- &api.Result{
+		TraceNum:   sg.TraceCounter,
+		SpanNum:    childSpanCount,
 		StartTime:  started,
 		FinishTime: finished,
 	}
-	return true
+	return nil
 }
 
 func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporters []ResultReporter) bool {
@@ -185,6 +187,7 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	for tagKey, tagValue := range sg.Baggage {
 		serverSpan.SetBaggageItem(tagKey, tagValue)
 	}
+	var childrenCounter int64 = 0
 	//Generate spans for subsequent calls.
 	for i, unit := range sg.Units {
 		//Step 1: create client-side span for calling the successor service, including relationship to current context.
@@ -196,6 +199,7 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 			relOption = opentracing.FollowsFrom(serverSpan.Context())
 		}
 		clientSpanName := fmt.Sprintf("%s-call-%d", sg.ServiceName, i)
+		clientSpanStart := time.Now()
 		localClientSpan := sg.Tracer.StartSpan(clientSpanName, relOption)
 		//Update context with reference to new client Span
 		ctx = opentracing.ContextWithSpan(ctx, localClientSpan)
@@ -205,11 +209,12 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 		if _, parsed := unit.WorkSampler.(*NoDistribution); !parsed {
 			//if the Distribution cannot be parsed to the NoDistribution, wait for the sampled amount of time and make a "synchronous" remote call
 			<-time.NewTimer(unit.WorkSampler.GetNextValue()).C
-			sg.DoRemoteCall(unit, ctx, localClientSpan)
+			sg.DoRemoteCall(unit, ctx, localClientSpan, clientSpanStart, childrenCounter)
 		} else {
 			//if no workBefore is done, do "async" remote call
-			go sg.DoRemoteCall(unit, ctx, localClientSpan)
+			go sg.DoRemoteCall(unit, ctx, localClientSpan, clientSpanStart, childrenCounter)
 		}
+		childrenCounter++
 	}
 	//Do final work locally.
 	if _, parsed := sg.WorkFinalDist.(*NoDistribution); !parsed {
@@ -217,12 +222,13 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	}
 
 	//Finish parent span and do reporting etc.
-	sg.finishAndReportTimedOTSpan(spanStart, serverSpan)
-	//TODO return a result! Report the result to all reporters? Currently reporters are not used here.
+	sg.finishAndReportTimedOTSpan(spanStart, serverSpan, -1)
+	sg.TraceCounter++
+	//TODO return a result!?
 	return true
 }
 
-func (sg *OpenTracingSpanGenerator) DoRemoteCall(unit *GeneratedUnit, ctx context.Context, clientSpan opentracing.Span) {
+func (sg *OpenTracingSpanGenerator) DoRemoteCall(unit *GeneratedUnit, ctx context.Context, clientSpan opentracing.Span, spanStart time.Time, childSpanNum int64) {
 	//Step 3a: Use context ("outgoing" is from the perspective of the calling service!) and create a metadata writer;
 	md, ok := metadata.FromOutgoingContext(ctx)
 	if !ok {
@@ -237,11 +243,16 @@ func (sg *OpenTracingSpanGenerator) DoRemoteCall(unit *GeneratedUnit, ctx contex
 		log.Printf("Tracer.Inject() failed: %v", err)
 	}
 	//Step 4: Call the successor service and create a new Context including the metadata in GRPC wire format.
-	//TODO to represent parallel calls to children, we need to enable async calls here and don't block for a result; what happens to this call context and finishing of the Span?
+	//We ignore the result, because it's just an Empty struct.
 	_, err = unit.UnitClient.Call(metadata.NewOutgoingContext(ctx, md), &api.Empty{})
+	if err != nil {
+		log.Printf("Failed remote call to successor at %s, error was %v", unit.Unit.GetInvokedHostPort(), err)
+	}
 	//Step 5: Finish local client Span
-	clientSpan.Finish()
-	sg.SpanCounter.WithLabelValues("child").Inc()
+	err = sg.finishAndReportTimedOTSpan(spanStart, clientSpan, childSpanNum)
+	if err != nil {
+		log.Printf("Error in finishing span: %v", clientSpan)
+	}
 }
 
 //WriteSpansUntilExitSignal takes a SpanGenerator, an exitSignalChannel and reporters.
@@ -250,10 +261,12 @@ func (sg *OpenTracingSpanGenerator) DoRemoteCall(unit *GeneratedUnit, ctx contex
 func (sg *OpenTracingSpanGenerator) WriteSpansUntilExitSignal(exitSignalChannel <-chan bool, interval time.Duration,
 	periodicReporters ...ResultReporter) chan bool {
 	finishedIndicator := make(chan bool, 1)
+	//Wait 5 seconds for successors to come up
+	<-time.NewTimer(5 * time.Second).C
 	go func() {
 		ticker := time.NewTicker(interval)
-		//TODO make report interval configurable
-		reportTicker := time.NewTicker(1 * time.Second)
+		//TODO make report interval configurable; together with channel buffer size, this limits the maximum throughput!
+		reportTicker := time.NewTicker(100 * time.Millisecond)
 	GenerateLoop:
 		for {
 			select {

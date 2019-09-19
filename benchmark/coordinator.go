@@ -117,7 +117,7 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 				log.Printf("Received result package from worker/service %s. Size: %d", worker.Config.OperationName, len(resultPackage.GetResults()))
 			}
 			if resultPackage != nil {
-				gocsv.MarshalFile(resultPackage.GetResults(), fileHandle)
+				gocsv.MarshalFile(resultsToRecords(resultPackage, worker.Config), fileHandle)
 			}
 		case <-finishedChannel:
 			return

@@ -42,10 +42,12 @@ message TagTemplate {
 }
 
 message Result {
-    bytes span_id = 1;
-    bytes trace_id = 2;
-    google.protobuf.Timestamp start_time = 3;
-    google.protobuf.Timestamp finish_time = 4;
+    bytes trace_id = 1;
+    int64 trace_num = 2;
+    bytes span_id = 3;
+    int64 span_num = 4;
+    google.protobuf.Timestamp start_time = 5;
+    google.protobuf.Timestamp finish_time = 6;
 }
 
 message ContextTemplate {

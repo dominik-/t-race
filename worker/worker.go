@@ -14,12 +14,12 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/keepalive"
 )
 
 type Worker struct {
 	Generator        SpanGenerator
 	Reporters        []ResultReporter
-	SpanCounter      *prometheus.CounterVec
 	SpanDurationHist prometheus.Histogram
 	Config           *api.WorkerConfiguration
 	ServicePort      int
@@ -50,13 +50,6 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	defer closer.Close()
 	//Setup for prometheus metrics
 	if !w.SetupDone {
-		w.SpanCounter = prometheus.NewCounterVec(prometheus.CounterOpts{
-			Name:      "spans_created_total",
-			Help:      "Spans created by this worker, partitioned by type (parent or child)",
-			Namespace: "worker",
-			Subsystem: config.OperationName,
-		}, []string{"type"})
-
 		w.SpanDurationHist = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "worker",
 			//Subsystem: config.OperationName,
@@ -64,13 +57,12 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 			Help:    "A Histogram of Span durations",
 			Buckets: []float64{10000.0, 20000.0, 50000.0, 100000.0, 200000.0},
 		})
-		prometheus.MustRegister(w.SpanCounter)
 		prometheus.MustRegister(w.SpanDurationHist)
 		w.SetupDone = true
 	}
 
 	doneChannel := make(chan bool, 1)
-	w.Generator = NewOpenTracingSpanGenerator(tracer, config, w.SpanCounter, w.SpanDurationHist)
+	w.Generator = NewOpenTracingSpanGenerator(tracer, config, w.SpanDurationHist)
 	if config.Root {
 		//We create a new done channel here if this is a root service
 		//TODO: Ideally, the "default" case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
@@ -82,11 +74,15 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
 	}
-	server := grpc.NewServer()
+	server := grpc.NewServer(
+		grpc.KeepaliveParams(keepalive.ServerParameters{
+			MaxConnectionIdle: 30 * time.Minute,
+		}),
+	)
 	api.RegisterBenchmarkWorkerServer(server, w)
 	//start server in separate goroutine because we need to look at benchmark runtime here.
 	go server.Serve(listener)
-	defer server.Stop()
+	//defer server.Stop()
 	//TODO: make tolerance time (time after which worker is shut down forcefully after runtime) a parameter of the benchmark
 	tolerance := 8 * time.Second
 	log.Printf("Started worker. Config: %v\n", config)
@@ -136,6 +132,7 @@ WorkerLoop:
 	//important: do final reporting after benchmark ends. We give 5 seconds tolerance to make sure all results are reported.
 	<-time.NewTimer(5 * time.Second).C
 	reportAllReporters(w.Reporters, stream)
+	server.GracefulStop()
 	return nil
 }
 

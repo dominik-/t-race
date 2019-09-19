@@ -2,7 +2,7 @@ version: "3.2"
 
 services:
     jaeger-agent:
-      image: jaegertracing/jaeger-agent:1.9
+      image: jaegertracing/jaeger-agent:1.14
       command: ["--reporter.type=grpc", "--reporter.grpc.host-port=jaeger-collector:14250"]
       networks: 
         - tracer-backend
@@ -16,7 +16,7 @@ services:
         - jaeger-collector
 
     jaeger-collector:
-      image: jaegertracing/jaeger-collector:1.9
+      image: jaegertracing/jaeger-collector:1.14
       command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
       networks: 
         - tracer-backend
@@ -31,7 +31,7 @@ services:
         - cassandra-schema
 
     jaeger-query:
-      image: jaegertracing/jaeger-query:1.9
+      image: jaegertracing/jaeger-query:1.14
       command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
       networks: 
         - tracer-backend
@@ -46,9 +46,11 @@ services:
       image: cassandra:3.9
       networks: 
         - tracer-backend
+      ports:
+        - "9042:9042"
 
     cassandra-schema:
-      image: jaegertracing/jaeger-cassandra-schema:1.9
+      image: jaegertracing/jaeger-cassandra-schema:1.14
       networks: 
         - tracer-backend
       depends_on:

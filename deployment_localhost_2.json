@@ -1,15 +1,15 @@
 {
     "workers" : [
         { 
-            "benchmark" : "localhost:7000",
-            "service" : "localhost:8000"
+            "benchmark" : "127.0.0.1:7000",
+            "service" : "127.0.0.1:8000"
         },
         {
-            "benchmark": "localhost:7001",
-            "service": "localhost:8001"
+            "benchmark": "127.0.0.1:7001",
+            "service": "127.0.0.1:8001"
         }
     ],
     "sinks": [
-        "localhost:6831"
+        "127.0.0.1:6831"
     ]
 }

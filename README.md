@@ -30,3 +30,10 @@ deployment of Jaeger, including Prometheus.
 
 ## Usage
 
+## Links
+
+CQL to CSV export:
+https://docs.datastax.com/en/archived/cql/3.3/cql/cql_reference/cqlshCopy.html
+
+
+

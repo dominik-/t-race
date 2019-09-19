@@ -1,9 +1,17 @@
+# IDE files and Golang vendoring.
 /.idea
 /vendor
+# Benchmark output dirs
 /results-*
-/provider/.terraform
-/provider/*.tfstate
-/provider/*.tfstate.backup
 
+# Terraform state files
+/provider/.terraform
+*.tfstate
+*.tfstate.backup
+
+# Binaries
 tracer-benchmarks
 *.exe
+
+# Local hacky shellscripts
+*-util.sh

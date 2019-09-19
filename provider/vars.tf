@@ -15,3 +15,15 @@ variable "my-key-name" {
   type = string
   default = "dominik-desktop"
 }
+
+output "env_external" {
+  value = "${join(",", aws_instance.environment.*.public_dns)}"
+}
+
+output "env_internal" {
+  value = "${join(",", aws_instance.environment.*.private_ip)}"
+}
+
+output "backend" {
+  value = aws_instance.tracing-backend.public_dns
+}
