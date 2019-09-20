@@ -2,7 +2,6 @@ package benchmark
 
 import (
 	"fmt"
-	"time"
 
 	"github.com/golang/protobuf/ptypes"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
@@ -18,8 +17,8 @@ type Record struct {
 	Service     string
 	TraceNumber int64
 	SpanNumber  int64
-	StartTime   time.Time
-	FinishTime  time.Time
+	StartTime   int64
+	FinishTime  int64
 }
 
 func resultsToRecords(results *api.ResultPackage, worker *api.WorkerConfiguration) []*Record {
@@ -35,8 +34,8 @@ func resultsToRecords(results *api.ResultPackage, worker *api.WorkerConfiguratio
 			Service:     worker.GetOperationName(),
 			TraceNumber: resultSlice[i].TraceNum,
 			SpanNumber:  resultSlice[i].SpanNum,
-			StartTime:   startTime,
-			FinishTime:  endTime,
+			StartTime:   startTime.UnixNano(),
+			FinishTime:  endTime.UnixNano(),
 		}
 	}
 	return records

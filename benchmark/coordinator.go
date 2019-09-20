@@ -2,6 +2,7 @@ package benchmark
 
 import (
 	"context"
+	"encoding/csv"
 	"io"
 	"log"
 	"os"
@@ -95,12 +96,19 @@ func (benchmark *Benchmark) StartBenchmark() {
 	os.Exit(0)
 }
 
+func CSVWriterToFile(file *os.File) *gocsv.SafeCSVWriter {
+	csvWriter := csv.NewWriter(file)
+	return gocsv.NewSafeCSVWriter(csvWriter)
+}
+
 func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool) {
 	fileHandle, err := os.Create(resultDir + "/" + worker.Config.WorkerId + ".csv")
 	if err != nil {
 		log.Printf("Couldn't create output file, reason: %v", err)
 	}
 	defer fileHandle.Close()
+	writer := CSVWriterToFile(fileHandle)
+	firstWrite := true
 	ticker := time.NewTicker(5 * time.Second)
 	for {
 		select {
@@ -117,7 +125,11 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 				log.Printf("Received result package from worker/service %s. Size: %d", worker.Config.OperationName, len(resultPackage.GetResults()))
 			}
 			if resultPackage != nil {
-				gocsv.MarshalFile(resultsToRecords(resultPackage, worker.Config), fileHandle)
+				if firstWrite {
+					gocsv.MarshalCSV(resultsToRecords(resultPackage, worker.Config), writer)
+					firstWrite = false
+				}
+				gocsv.MarshalCSVWithoutHeaders(resultsToRecords(resultPackage, worker.Config), writer)
 			}
 		case <-finishedChannel:
 			return

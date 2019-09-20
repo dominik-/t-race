@@ -13,7 +13,7 @@ import (
 var benchCmd = &cobra.Command{
 	Use:   "bench",
 	Short: "Starts a t-race benchmark run.",
-	Long:  `Starts a t-race benchmark run with given parameters. Requires an existing deployment file.`,
+	Long:  `Starts a t-race benchmark run with given parameters. Requires existing deployment and service files.`,
 	Run:   ExecuteBenchmark,
 }
 

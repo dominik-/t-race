@@ -23,4 +23,4 @@ scrape_configs:
   honor_labels: true
   # static configs for up to 4 workers running locally on a docker host!
   static_configs:
-  - targets: ['172.31.16.225:9000', '172.31.24.229:9000']
+  - targets: ['localhost:9000', 'localhost:9001']

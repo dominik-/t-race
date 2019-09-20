@@ -19,7 +19,7 @@ import (
 
 type Worker struct {
 	Generator        SpanGenerator
-	Reporters        []ResultReporter
+	Reporter         ResultReporter
 	SpanDurationHist prometheus.Histogram
 	Config           *api.WorkerConfiguration
 	ServicePort      int
@@ -60,16 +60,8 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 		prometheus.MustRegister(w.SpanDurationHist)
 		w.SetupDone = true
 	}
-
+	w.Reporter = NewBufferingReporter(stream, 500)
 	doneChannel := make(chan bool, 1)
-	w.Generator = NewOpenTracingSpanGenerator(tracer, config, w.SpanDurationHist)
-	if config.Root {
-		//We create a new done channel here if this is a root service
-		//TODO: Ideally, the "default" case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
-		//indicating that the root-workers no longer send requests;
-		doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, calculateIntervalByThroughput(config.TargetThroughput), w.Reporters...)
-	}
-
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", w.ServicePort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -82,15 +74,33 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	api.RegisterBenchmarkWorkerServer(server, w)
 	//start server in separate goroutine because we need to look at benchmark runtime here.
 	go server.Serve(listener)
-	//defer server.Stop()
+	log.Printf("Started worker. Config: %v\n", config)
+	w.Generator = NewOpenTracingSpanGenerator(tracer, config, w.SpanDurationHist)
+	if config.Root {
+		//We create a new done channel here if this is a root service
+		//TODO: Ideally, the "default" case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
+		//indicating that the root-workers no longer send requests;
+		doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, calculateIntervalByThroughput(config.TargetThroughput), w.Reporter)
+	}
+	// go func() {
+	// 	//TODO make report interval configurable; together with channel buffer size, this limits the maximum throughput!
+	// 	reporterCollectionTicker := time.NewTicker(5 * time.Second)
+	// ReporterLoop:
+	// 	for {
+	// 		select {
+	// 		case <-doneChannel:
+	// 			//log.Println("Received shutdown signal at write Span loop.")
+	// 			break ReporterLoop
+	// 		case <-reporterCollectionTicker.C:
+	// 			go w.Reporter.Report()
+	// 		}
+	// 	}
+	// }()
+
+	//create a timer with runtime plus tolerance
 	//TODO: make tolerance time (time after which worker is shut down forcefully after runtime) a parameter of the benchmark
 	tolerance := 8 * time.Second
-	log.Printf("Started worker. Config: %v\n", config)
-	//create a timer with runtime
 	timer := time.NewTimer(time.Duration(config.RuntimeSeconds) * time.Second)
-	//intervals in which results are being pushed back to the coordinator
-	//TODO: make ticker interval configurable for benchmark
-	reportTicker := time.NewTicker(5 * time.Second)
 WorkerLoop:
 	for {
 		select {
@@ -125,21 +135,13 @@ WorkerLoop:
 					break WorkerLoop
 				}
 			}
-		case <-reportTicker.C:
-			reportAllReporters(w.Reporters, stream)
 		}
 	}
 	//important: do final reporting after benchmark ends. We give 5 seconds tolerance to make sure all results are reported.
 	<-time.NewTimer(5 * time.Second).C
-	reportAllReporters(w.Reporters, stream)
+	w.Reporter.Report()
 	server.GracefulStop()
 	return nil
-}
-
-func reportAllReporters(reporters []ResultReporter, stream api.BenchmarkWorker_StartWorkerServer) {
-	for _, reporter := range reporters {
-		reporter.Report(stream)
-	}
 }
 
 func calculateIntervalByThroughput(targetThroughput int64) time.Duration {
@@ -158,6 +160,6 @@ func calculateIntervalByThroughput(targetThroughput int64) time.Duration {
 
 func (w *Worker) Call(ctx context.Context, in *api.Empty) (*api.Empty, error) {
 	//Delegate to to generator for all successor remote calls.
-	w.Generator.DoUnitCalls(ctx, w.Reporters)
+	w.Generator.DoUnitCalls(ctx, w.Reporter)
 	return &api.Empty{}, nil
 }

@@ -45,11 +45,8 @@ func StartWorkerProcess(benchmarkPort, servicePort, prometheusPort int, exportPr
 	// Use Credentials in gRPC server options
 	serverOption := grpc.Creds(creds) */
 	server := grpc.NewServer()
-	reporters := make([]ResultReporter, 1)
-	reporters[0] = NewBufferingReporter(50)
-	//we add an empty worker, except for reporters; everything else is configured once the worker receives a benchmark configuration
+	//we add an empty worker; everything else is configured once the worker receives a benchmark configuration
 	api.RegisterBenchmarkWorkerServer(server, &Worker{
-		Reporters:        reporters,
 		ServicePort:      servicePort,
 		SamplingStrategy: samplingType,
 		SamplingParams:   []float64{samplingParam},
