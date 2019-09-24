@@ -85,7 +85,7 @@ func (benchmark *Benchmark) StartBenchmark() {
 	}
 	<-time.NewTimer(time.Second * time.Duration(benchmark.Config.Runtime)).C
 	//we wait additional time to make sure we received all events.
-	toleranceDuration := 10 * time.Second
+	toleranceDuration := 30 * time.Second
 	log.Printf("Runtime finished. Waiting %v for final benchmark results...", toleranceDuration)
 	<-time.NewTimer(toleranceDuration).C
 	for _, channel := range finishedChannels {
@@ -128,8 +128,9 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 				if firstWrite {
 					gocsv.MarshalCSV(resultsToRecords(resultPackage, worker.Config), writer)
 					firstWrite = false
+				} else {
+					gocsv.MarshalCSVWithoutHeaders(resultsToRecords(resultPackage, worker.Config), writer)
 				}
-				gocsv.MarshalCSVWithoutHeaders(resultsToRecords(resultPackage, worker.Config), writer)
 			}
 		case <-finishedChannel:
 			return
