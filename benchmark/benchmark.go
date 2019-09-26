@@ -19,6 +19,7 @@ type Record struct {
 	SpanNumber  int64
 	StartTime   int64
 	FinishTime  int64
+	Sampled     bool
 }
 
 func resultsToRecords(results *api.ResultPackage, worker *api.WorkerConfiguration) []*Record {
@@ -36,6 +37,7 @@ func resultsToRecords(results *api.ResultPackage, worker *api.WorkerConfiguratio
 			SpanNumber:  resultSlice[i].SpanNum,
 			StartTime:   startTime.UnixNano(),
 			FinishTime:  endTime.UnixNano(),
+			Sampled:     resultSlice[i].Sampled,
 		}
 	}
 	return records

@@ -48,6 +48,7 @@ message Result {
     int64 span_num = 4;
     google.protobuf.Timestamp start_time = 5;
     google.protobuf.Timestamp finish_time = 6;
+    bool sampled = 7;
 }
 
 message ContextTemplate {

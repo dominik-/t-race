@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"reflect"
 	"time"
 
 	"github.com/golang/protobuf/ptypes"
@@ -17,6 +18,9 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
+
+//TODO is this flag implementation-specific? Or at least for all opentracing-implementations in go the same?
+const flagSampled = byte(1)
 
 type OpenTracingSpanGenerator struct {
 	TraceCounter     int64
@@ -126,7 +130,21 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, config *api.WorkerCo
 	return generator
 }
 
+func getSampledFlag(ctx opentracing.SpanContext) bool {
+	v := reflect.ValueOf(ctx)
+	f := v.FieldByName("flags")
+
+	if !f.IsValid() || f.Kind() != reflect.Uint8 {
+		log.Printf("Couldn't convert to byte!!")
+	}
+
+	byteFlags := byte(f.Uint())
+
+	return (byteFlags & flagSampled) == flagSampled
+}
+
 func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Time, span opentracing.Span, childSpanCount int64, reporter ResultReporter) error {
+	sampled := getSampledFlag(span.Context())
 	span.Finish()
 	finishTimeDelta := time.Since(startTime)
 	sg.SpanDurationHist.Observe(float64(finishTimeDelta.Nanoseconds() / 1000.0))
@@ -141,6 +159,7 @@ func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Ti
 		SpanNum:    childSpanCount,
 		StartTime:  started,
 		FinishTime: finished,
+		Sampled:    sampled,
 	})
 	return nil
 }

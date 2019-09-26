@@ -34,12 +34,3 @@ deployment of Jaeger, including Prometheus.
 
 CQL to CSV export:
 https://docs.datastax.com/en/archived/cql/3.3/cql/cql_reference/cqlshCopy.html
-
-Export all Jaeger Traces from Cassandra:
-```
-COPY jaeger_v1_dc1.traces TO '/out/traces.csv' WITH HEADER = TRUE;
-```
-
-sudo docker run -it --network tracer-benchmarks_tracer-backend -v /home/dominik/dev/work-go/tracer-benchmarks/results-cassandra:/out --rm cassandra:3.9 cqlsh cassandra
-
-

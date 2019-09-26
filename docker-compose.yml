@@ -16,7 +16,7 @@ services:
         - jaeger-collector
 
     jaeger-collector:
-      image: jaegertracing/jaeger-collector:1.14
+      image: jaegertracing/jaeger-collector:1.14-ts
       command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
       networks: 
         - tracer-backend
@@ -50,7 +50,7 @@ services:
         - "9042:9042"
 
     cassandra-schema:
-      image: jaegertracing/jaeger-cassandra-schema:1.14
+      image: jaegertracing/jaeger-cassandra-schema:1.14-ts
       networks: 
         - tracer-backend
       depends_on:

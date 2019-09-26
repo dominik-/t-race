@@ -18,3 +18,6 @@ tracer-benchmarks
 
 # Local random notes
 RANDOM.md
+
+#Jupyter state
+/.ipynb_checkpoints
