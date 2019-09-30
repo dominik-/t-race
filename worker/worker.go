@@ -26,6 +26,7 @@ type Worker struct {
 	SamplingStrategy string
 	SamplingParams   []float64
 	SetupDone        bool
+	MetricsRegistry  prometheus.Registerer
 }
 
 func (w *Worker) GetTracer() opentracing.Tracer {
@@ -50,6 +51,7 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	defer closer.Close()
 	//Setup for prometheus metrics
 	if !w.SetupDone {
+		w.MetricsRegistry = prometheus.NewRegistry()
 		w.SpanDurationHist = prometheus.NewHistogram(prometheus.HistogramOpts{
 			Namespace: "worker",
 			//Subsystem: config.OperationName,
@@ -57,7 +59,7 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 			Help:    "A Histogram of Span durations",
 			Buckets: []float64{10000.0, 20000.0, 50000.0, 100000.0, 200000.0},
 		})
-		prometheus.MustRegister(w.SpanDurationHist)
+		w.MetricsRegistry.MustRegister(w.SpanDurationHist)
 		w.SetupDone = true
 	}
 	w.Reporter = NewBufferingReporter(stream, 500)

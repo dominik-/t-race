@@ -1,0 +1,41 @@
+services:
+  - id: svc01
+    envRef: env01
+    sinkRef: agent1
+    finalWork: work01
+    units:
+      - work: work02
+        svc: svc02
+    context:
+      tags:
+        20: 40
+      baggage:
+        20: 80
+        21: 79
+        22: 78
+        23: 77
+        24: 76
+        25: 75
+        26: 74
+        27: 73
+        28: 72
+        29: 71
+  - id: svc02
+    envRef: env01
+    sinkRef: agent1
+    finalWork: work01
+    context:
+      tags:
+        20: 40
+sinks:
+  - id: agent1
+    envRef: env01
+workUnits:
+  - id: work01
+    type: constant
+    params:
+      value: 20000
+  - id: work02
+    type: constant
+    params:
+      value: 10000

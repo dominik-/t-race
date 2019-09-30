@@ -24,37 +24,37 @@ var workerCmd = &cobra.Command{
 func init() {
 	rootCmd.AddCommand(workerCmd)
 	cobra.OnInitialize(initViperConfigWorker)
-	workerCmd.Flags().StringVar(&workerCfgFile, "worker", "tbench-worker", "Config file name. Can be YAML, JSON or TOML format.")
+	workerCmd.Flags().StringVar(&workerCfgFile, "workerConfig", "worker", "Config file name. Can be YAML, JSON or TOML format.")
 	workerCmd.Flags().IntVarP(&benchmarkPort, "benchmarkPort", "b", 7000, "Port for the grpc server to receive benchmark configs.")
 	workerCmd.Flags().IntVarP(&servicePort, "servicePort", "p", 8000, "Port for the grpc server to act within a service dependency graph.")
 	workerCmd.Flags().StringVar(&samplingType, "samplingType", "probabilistic", "Sampling strategy type to implement at the worker. Depends on tracer. For Jaeger: const, remote, probabilistic, ratelimiting, lowerbound")
 	workerCmd.Flags().Float64Var(&samplingParam, "samplingParam", 0.1, "Parameter for sampling type. Depends on type.")
-	workerCmd.Flags().IntVar(&prometheusPort, "prometheusPort", 9000, "Port for the endpoint to scrape prometheus metrics from. The default /metrics path is used.")
-	workerCmd.Flags().BoolVar(&exportPrometheus, "exportPrometheus", true, "Whether to collect prometheus metrics or not.")
+	workerCmd.Flags().IntVarP(&metricsPort, "metricsPort", "m", 9000, "Port for the endpoint to scrape prometheus metrics from. The default /metrics path is used.")
+	workerCmd.Flags().BoolVar(&exportMetrics, "exportMetrics", true, "Whether to collect prometheus metrics or not.")
 	viper.SetEnvPrefix("worker")
 	viper.AutomaticEnv()
 	bindToViper("benchmarkPort", workerCmd)
 	bindToViper("servicePort", workerCmd)
 	bindToViper("samplingType", workerCmd)
 	bindToViper("samplingParam", workerCmd)
-	bindToViper("prometheusPort", workerCmd)
-	bindToViper("exportPrometheus", workerCmd)
+	bindToViper("metricsPort", workerCmd)
+	bindToViper("exportMetrics", workerCmd)
 }
 
 var (
-	workerCfgFile    string
-	benchmarkPort    int
-	servicePort      int
-	samplingType     string
-	samplingParam    float64
-	prometheusPort   int
-	exportPrometheus bool
+	workerCfgFile string
+	benchmarkPort int
+	servicePort   int
+	samplingType  string
+	samplingParam float64
+	metricsPort   int
+	exportMetrics bool
 )
 
 func StartWorker(cmd *cobra.Command, args []string) {
 	sigTermRecv := make(chan os.Signal, 1)
 	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)
-	shutdown := worker.StartWorkerProcess(benchmarkPort, servicePort, prometheusPort, exportPrometheus, samplingType, samplingParam)
+	shutdown := worker.StartWorkerProcess(benchmarkPort, servicePort, metricsPort, exportMetrics, samplingType, samplingParam)
 	//wait for external signal to shut down
 	<-sigTermRecv
 	shutdown <- true
@@ -82,6 +82,6 @@ func initViperConfigWorker() {
 	servicePort = viper.GetInt("servicePort")
 	samplingType = viper.GetString("samplingType")
 	samplingParam = viper.GetFloat64("samplingParam")
-	prometheusPort = viper.GetInt("prometheusPort")
-	exportPrometheus = viper.GetBool("exportPrometheus")
+	metricsPort = viper.GetInt("metricsPort")
+	exportMetrics = viper.GetBool("exportMetrics")
 }
