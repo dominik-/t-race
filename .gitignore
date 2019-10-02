@@ -21,3 +21,6 @@ RANDOM.md
 
 #Jupyter state
 /.ipynb_checkpoints
+
+#Other files for convenience
+*.pdf

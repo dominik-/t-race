@@ -178,7 +178,7 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 	var ctx context.Context
 	spanStart := time.Now()
 	if err != nil && err == opentracing.ErrSpanContextNotFound {
-		//start local "parent" span
+		//start local "parent" span as root span
 		serverSpan = sg.Tracer.StartSpan(sg.ServiceName + "-parent")
 		ctx = opentracing.ContextWithSpan(context.Background(), serverSpan)
 	} else if err != nil {
