@@ -17,6 +17,9 @@ func init() {
 	distributionRegistry["gaussian"] = &GaussianDistribution{
 		randomizer: rand.New(src),
 	}
+	distributionRegistry["exponential"] = &ExpDistribution{
+		randomizer: rand.New(src),
+	}
 	//rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
@@ -128,4 +131,23 @@ func (gd *GaussianDistribution) SetParameters(values map[string]float64) {
 
 func (gd *GaussianDistribution) SetRNGSeed(seed int64) {
 	gd.randomizer = rand.New(rand.NewSource(seed))
+}
+
+type ExpDistribution struct {
+	randomizer *rand.Rand
+	mean       float64 `yaml:"mean"`
+	lambda     float64 `yaml:-`
+}
+
+func (ed *ExpDistribution) SetRNGSeed(seed int64) {
+	ed.randomizer = rand.New(rand.NewSource(seed))
+}
+
+func (ed *ExpDistribution) SetParameters(values map[string]float64) {
+	ed.mean = values["mean"]
+	ed.lambda = 1 / ed.mean
+}
+
+func (ed *ExpDistribution) GetNextValue() time.Duration {
+	return time.Duration(ed.randomizer.ExpFloat64()/ed.lambda) * time.Microsecond
 }

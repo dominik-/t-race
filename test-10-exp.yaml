@@ -1,0 +1,103 @@
+services:
+  - id: svc01
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc02
+    context:
+      tags:
+        20: 40
+      baggage:
+        20: 40
+  - id: svc02
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc03
+    context:
+      tags:
+        20: 40
+  - id: svc03
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc04
+    context:
+      tags:
+        20: 40
+  - id: svc04
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc05
+    context:
+      tags:
+        20: 40
+  - id: svc05
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc06
+    context:
+      tags:
+        20: 40
+  - id: svc06
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc07
+    context:
+      tags:
+        20: 40
+  - id: svc07
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc08
+    context:
+      tags:
+        20: 40
+  - id: svc08
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc09
+    context:
+      tags:
+        20: 40
+  - id: svc09
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: transform-propagate
+        svc: svc10
+    context:
+      tags:
+        20: 40
+  - id: svc10
+    envRef: env01
+    sinkRef: agent1
+    workFinal: dbwrite
+    context:
+      tags:
+        20: 40
+sinks:
+  - id: agent1
+    envRef: env01
+workUnits:
+  - id: transform-propagate
+    type: exponential
+    params:
+      mean: 5000
+  - id: dbwrite
+    type: exponential
+    params:
+      value: 20000

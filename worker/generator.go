@@ -2,6 +2,7 @@ package worker
 
 import (
 	"context"
+	"encoding/binary"
 	"fmt"
 	"io"
 	"log"
@@ -143,8 +144,41 @@ func getSampledFlag(ctx opentracing.SpanContext) bool {
 	return (byteFlags & flagSampled) == flagSampled
 }
 
+type TraceID struct {
+	High, Low uint64
+}
+
+func getTraceIdAsBytes(ctx opentracing.SpanContext) []byte {
+	v := reflect.ValueOf(ctx)
+	f := v.FieldByName("traceID")
+
+	if !f.IsValid() || f.Kind() != reflect.Struct {
+		log.Printf("Couldn't convert to struct!!")
+	}
+	//One level deeper...
+
+	b1, b2 := make([]byte, 8), make([]byte, 8)
+	binary.LittleEndian.PutUint64(b1, f.FieldByName("High").Uint())
+	binary.LittleEndian.PutUint64(b2, f.FieldByName("Low").Uint())
+	return append(b1, b2...)
+}
+
+func getSpanID(ctx opentracing.SpanContext) []byte {
+	v := reflect.ValueOf(ctx)
+	f := v.FieldByName("spanID")
+
+	if !f.IsValid() || f.Kind() != reflect.Uint64 {
+		log.Printf("Couldn't convert to uint!!")
+	}
+	b := make([]byte, 8)
+	binary.LittleEndian.PutUint64(b, f.Uint())
+	return b
+}
+
 func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Time, span opentracing.Span, childSpanCount int64, reporter ResultReporter) error {
 	sampled := getSampledFlag(span.Context())
+	traceID := getTraceIdAsBytes(span.Context())
+	spanID := getSpanID(span.Context())
 	span.Finish()
 	finishTimeDelta := time.Since(startTime)
 	sg.SpanDurationHist.Observe(float64(finishTimeDelta.Nanoseconds() / 1000.0))
@@ -157,6 +191,8 @@ func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Ti
 	reporter.Collect(&api.Result{
 		TraceNum:   sg.TraceCounter,
 		SpanNum:    childSpanCount,
+		TraceId:    traceID,
+		SpanId:     spanID,
 		StartTime:  started,
 		FinishTime: finished,
 		Sampled:    sampled,

@@ -17,6 +17,8 @@ type Record struct {
 	Service     string
 	TraceNumber int64
 	SpanNumber  int64
+	TraceID     []byte
+	SpanID      []byte
 	StartTime   int64
 	FinishTime  int64
 	Sampled     bool
@@ -35,6 +37,8 @@ func resultsToRecords(results *api.ResultPackage, worker *api.WorkerConfiguratio
 			Service:     worker.GetOperationName(),
 			TraceNumber: resultSlice[i].TraceNum,
 			SpanNumber:  resultSlice[i].SpanNum,
+			TraceID:     resultSlice[i].TraceId,
+			SpanID:      resultSlice[i].SpanId,
 			StartTime:   startTime.UnixNano(),
 			FinishTime:  endTime.UnixNano(),
 			Sampled:     resultSlice[i].Sampled,

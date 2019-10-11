@@ -2,6 +2,7 @@ module gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks
 
 require (
 	github.com/apache/thrift v0.12.0 // indirect
+	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
 	github.com/gocarina/gocsv v0.0.0-20190313153828-c075544dca88
 	github.com/golang/protobuf v1.3.2
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
