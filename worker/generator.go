@@ -158,8 +158,8 @@ func getTraceIdAsBytes(ctx opentracing.SpanContext) []byte {
 	//One level deeper...
 
 	b1, b2 := make([]byte, 8), make([]byte, 8)
-	binary.LittleEndian.PutUint64(b1, f.FieldByName("High").Uint())
-	binary.LittleEndian.PutUint64(b2, f.FieldByName("Low").Uint())
+	binary.BigEndian.PutUint64(b1, f.FieldByName("High").Uint())
+	binary.BigEndian.PutUint64(b2, f.FieldByName("Low").Uint())
 	return append(b1, b2...)
 }
 
@@ -171,7 +171,7 @@ func getSpanID(ctx opentracing.SpanContext) []byte {
 		log.Printf("Couldn't convert to uint!!")
 	}
 	b := make([]byte, 8)
-	binary.LittleEndian.PutUint64(b, f.Uint())
+	binary.BigEndian.PutUint64(b, f.Uint())
 	return b
 }
 
