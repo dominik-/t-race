@@ -13,7 +13,7 @@ import (
 //Calltype enum alias.
 type relationshipType int
 
-//This constitutes the relationshipType enum - an integer with two static representations.
+//This constitutes the relationshipType enum - in golang, an integer with two static representations.
 const (
 	CHILD relationshipType = iota
 	FOLLOWS
@@ -97,11 +97,40 @@ type WorkUnit struct {
 //SpanContext contains Tags and Baggage; Tags are local context of services, sent to the tracing backend
 //Baggage is propagated to subsequent services (cf. OpenTracing specification https://github.com/opentracing/specification/blob/master/specification.md)
 type SpanContext struct {
-	Tags    map[int]int `yaml:"tags"`
-	Baggage map[int]int `yaml:"baggage"`
+	Tags    map[LengthOrValue]LengthOrValue `yaml:"tags"`
+	Baggage map[LengthOrValue]LengthOrValue `yaml:"baggage"`
 }
 
-//Sink is a wrapper around a backend service of a tracing system (something like a proxy/agent or storage/collector).
+//LengthOrValue is a helper type to represent either static or dynamically generated keys or values of tags and baggage items.
+type LengthOrValue struct {
+	Length   int64  `yaml:"-"`
+	Value    string `yaml:"-"`
+	IsLength bool   `yaml:"-"`
+}
+
+//UnmarshalYAML is the custom marshalling for LengthOrValue
+func (l LengthOrValue) UnmarshalYAML(unmarshal func(value interface{}) error) error {
+	//first try to marshal to int
+	var lengthValue int
+	err := unmarshal(&lengthValue)
+	if err != nil {
+		if errors.Is(err, &yaml.TypeError{}) {
+			var stringValue string
+			err = unmarshal(&stringValue)
+			if err != nil {
+				return err
+			}
+			l.Value = stringValue
+			return nil
+		}
+		return err
+	}
+	l.IsLength = true
+	l.Length = int64(lengthValue)
+	return nil
+}
+
+//Sink is a wrapper around a backend service of a tracing system (something like a proxy/agent, storage/collector, stream pipeline or w/e).
 type Sink struct {
 	Identifier     string `yaml:"id"`
 	Provider       string `yaml:"provider"`
@@ -179,14 +208,14 @@ func validateDeploymentAndResolveRefs(deployment *Model) {
 			if unit.SuccessorRef != "" {
 				referencedService, exists := serviceIDMap[unit.SuccessorRef]
 				if !exists {
-					log.Fatalf("Reference to non-existant successor id (%s) found in deployment: error in service %s. Aborting.", unit.SuccessorRef, c.Identifier)
+					log.Fatalf("Reference to non-existing successor id (%s) found in deployment: error in service %s. Aborting.", unit.SuccessorRef, c.Identifier)
 				}
 				unit.Successor = referencedService
 			}
 			if unit.WorkRef != "" {
 				referencedWork, exists := workUnitIDMap[unit.WorkRef]
 				if !exists {
-					log.Fatalf("Reference to non-existant work id (%s) found in deployment: error in service %s. Aborting.", unit.WorkRef, c.Identifier)
+					log.Fatalf("Reference to non-existing work id (%s) found in deployment: error in service %s. Aborting.", unit.WorkRef, c.Identifier)
 				}
 				unit.WorkUnit = referencedWork
 			}
@@ -196,7 +225,7 @@ func validateDeploymentAndResolveRefs(deployment *Model) {
 		}
 	}
 	//TODO currently, we assume there is exactly one root service, but the deployment would allow otherwise - what should we assume?
-	// multiple roots would require multiple target throughputs and lead to possible contention betweend requests from different roots...
+	// (multiple roots would require multiple target throughputs and lead to possible contention between requests from different roots)...
 	//TODO check for loops in the service graph here
 	//TODO check for validity of refs to envs/sinks
 }

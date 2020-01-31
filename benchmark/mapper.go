@@ -37,13 +37,14 @@ func toSpanContext(c *SpanContext) *api.ContextTemplate {
 	}
 }
 
-func toTagTemplate(template map[int]int) []*api.TagTemplate {
+func toTagTemplate(template map[LengthOrValue]LengthOrValue) []*api.TagTemplate {
 	templates := make([]*api.TagTemplate, 0)
-	for keysize, valsize := range template {
-		templates = append(templates, &api.TagTemplate{
-			KeyByteLength:   int64(keysize),
-			ValueByteLength: int64(valsize),
-		})
+	for key, val := range template {
+		temp := &api.TagTemplate{
+			Key:   toLengthOrValue(&key),
+			Value: toLengthOrValue(&val),
+		}
+		templates = append(templates, temp)
 	}
 	return templates
 }
@@ -71,5 +72,20 @@ func toWorkUnit(wu *WorkUnit) *api.Work {
 	return &api.Work{
 		DistType:   wu.Type,
 		Parameters: wu.Params,
+	}
+}
+
+func toLengthOrValue(low *LengthOrValue) *api.LengthOrStaticValue {
+	if low.IsLength {
+		return &api.LengthOrStaticValue{
+			LengthOrValue: &api.LengthOrStaticValue_Length{
+				Length: low.Length,
+			},
+		}
+	}
+	return &api.LengthOrStaticValue{
+		LengthOrValue: &api.LengthOrStaticValue_Value{
+			Value: low.Value,
+		},
 	}
 }
