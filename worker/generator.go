@@ -15,12 +15,13 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 
+	jaegerclient "github.com/uber/jaeger-client-go"
 	jaegercfg "github.com/uber/jaeger-client-go/config"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/metadata"
 )
 
-//TODO is this flag implementation-specific? Or at least for all opentracing-implementations in go the same?
+//TODO this flag is implementation-specific for jaeger-client-go impl of opentracing SpanContext. Should remove this.
 const flagSampled = byte(1)
 
 type OpenTracingSpanGenerator struct {
@@ -118,36 +119,65 @@ func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, config *api.WorkerCo
 	}
 	//Generate tags and baggage once
 	if config.Context != nil {
-		generator.Tags = make(map[string]string, len(config.Context.Tags))
-		generator.Baggage = make(map[string]string, len(config.Context.Baggage))
-		for _, tagTemplate := range config.Context.Tags {
-			generator.Tags[RandStringWithLength(tagTemplate.KeyByteLength)] = RandStringWithLength(tagTemplate.ValueByteLength)
-		}
-		for _, tagTemplate := range config.Context.Baggage {
-			generator.Baggage[RandStringWithLength(tagTemplate.KeyByteLength)] = RandStringWithLength(tagTemplate.ValueByteLength)
-		}
+		generator.Tags = toStringMap(config.Context.Tags)
+		generator.Baggage = toStringMap(config.Context.Baggage)
 	}
 	generator.ServiceName = config.OperationName
 	return generator
 }
 
-func getSampledFlag(ctx opentracing.SpanContext) bool {
-	v := reflect.ValueOf(ctx)
-	f := v.FieldByName("flags")
-
-	if !f.IsValid() || f.Kind() != reflect.Uint8 {
-		log.Printf("Couldn't convert to byte!!")
+//Turns templates for tags and baggage into a map of strings to strings.
+func toStringMap(templates []*api.KeyValueTemplate) map[string]string {
+	data := make(map[string]string, len(templates))
+	for _, tagTemplate := range templates {
+		//Differentiation 0: key is static value, i.e. check for length to be 0 or less
+		if tagTemplate.GetKeyLength() <= 0 {
+			//Differentiation 1: value is a static value, i.e. check for length to be 0 or less
+			if tagTemplate.GetValueLength() <= 0 {
+				data[tagTemplate.GetKeyStatic()] = tagTemplate.GetValueStatic()
+			} else {
+				data[tagTemplate.GetKeyStatic()] = RandStringWithLength(tagTemplate.GetValueLength())
+			}
+		} else {
+			//Differentiation 1 (again): value is a static value, i.e. check for length to be 0 or less
+			if tagTemplate.GetValueLength() <= 0 {
+				data[RandStringWithLength(tagTemplate.GetKeyLength())] = tagTemplate.GetValueStatic()
+			} else {
+				data[RandStringWithLength(tagTemplate.GetKeyLength())] = RandStringWithLength(tagTemplate.GetValueLength())
+			}
+		}
 	}
-
-	byteFlags := byte(f.Uint())
-
-	return (byteFlags & flagSampled) == flagSampled
+	return data
 }
 
+//this function is actually jaeger-specific, as the OpentTacing API doesn't include any operations for accessing content of the context.
+func getSampledFlag(ctx opentracing.SpanContext) bool {
+	if converted, ok := ctx.(jaegerclient.SpanContext); ok {
+		return converted.IsSampled()
+	}
+	panic("Couldn't convert opentracing context to jaeger context!")
+	// if ctx == nil {
+	// 	//we can panic here, because we will panic further down anyways if the context is nil
+	// 	panic("Context is nil!!")
+	// }
+	// v := reflect.ValueOf(ctx)
+	// f := v.FieldByName("flags")
+
+	// if !f.IsValid() || f.Kind() != reflect.Uint8 {
+	// 	panic("Couldn't convert to byte!!")
+	// }
+
+	// byteFlags := byte(f.Uint())
+
+	// return (byteFlags & flagSampled) == flagSampled
+}
+
+//TODO: remove this after conversion of opentracing spancontext to jaeger-client-go spancontext (see getSampledFlag() method)
 type TraceID struct {
 	High, Low uint64
 }
 
+//TODO: refactor this to use a conversion of opentracing spancontext to jaeger-client-go spancontext (see getSampledFlag() method)
 func getTraceIdAsBytes(ctx opentracing.SpanContext) []byte {
 	v := reflect.ValueOf(ctx)
 	f := v.FieldByName("traceID")
@@ -163,6 +193,7 @@ func getTraceIdAsBytes(ctx opentracing.SpanContext) []byte {
 	return append(b1, b2...)
 }
 
+//TODO: refactor this to use a conversion of opentracing spancontext to jaeger-client-go spancontext (see getSampledFlag() method)
 func getSpanID(ctx opentracing.SpanContext) []byte {
 	v := reflect.ValueOf(ctx)
 	f := v.FieldByName("spanID")

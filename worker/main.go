@@ -18,7 +18,7 @@ func StartWorkerProcess(benchmarkPort, servicePort, prometheusPort int, exportPr
 		log.Fatalf("failed to listen: %v", err)
 	}
 	if exportPrometheus {
-		//TODO this listener is never closed so far
+		//TODO this listener is never closed
 		listenerHTTPPrometheus, err := net.Listen("tcp", fmt.Sprintf(":%d", prometheusPort))
 		if err != nil {
 			log.Fatalf("failed to listen: %v", err)

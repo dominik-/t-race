@@ -9,16 +9,13 @@ services:
       - svc: svc03
     context:
       tags:
-        - idString:
-            key: 20
-            value: 40
-        - method:
-            key: 8
-            value: 60
+        - keyLength: 20
+          valueLength: 40
+        - keyStatic: method
+          valueLength: 60
       baggage:
-        - clientId:
-            key: 10
-            value: 30
+        - keyLength: 10
+          valueLength: 30
   - id: svc02
     envRef: env02
     sinkRef: agent2
@@ -26,18 +23,17 @@ services:
       - work: work02
         svc: svc04
     context:
-      Tags:
-        idString: 24
-        method: 60
+      tags:
+        - keyStatic: idString 
+          valueStatic: authN
   - id: svc03
     envRef: env03
     sinkRef: agent3
     units:
       - work: work01
     context:
-      Tags:
-        idString: 24
-        method: 60
+      tags:
+        - keyLength: 25
   - id: svc04
     envRef: env03
     sinkRef: agent3

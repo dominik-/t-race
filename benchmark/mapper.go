@@ -32,19 +32,22 @@ func MapDeploymentToWorkerConfigs(d Model, b BenchmarkConfig, sinks, services ma
 
 func toSpanContext(c *SpanContext) *api.ContextTemplate {
 	return &api.ContextTemplate{
-		Baggage: toTagTemplate(c.Baggage),
-		Tags:    toTagTemplate(c.Tags),
+		Baggage: toKVTemplate(c.Baggage),
+		Tags:    toKVTemplate(c.Tags),
 	}
 }
 
-func toTagTemplate(template map[LengthOrValue]LengthOrValue) []*api.TagTemplate {
-	templates := make([]*api.TagTemplate, 0)
-	for key, val := range template {
-		temp := &api.TagTemplate{
-			Key:   toLengthOrValue(&key),
-			Value: toLengthOrValue(&val),
+func toKVTemplate(template []*KeyValueTemplate) []*api.KeyValueTemplate {
+	templates := make([]*api.KeyValueTemplate, 0)
+	for _, tmpl := range template {
+		var apiTemplate *api.KeyValueTemplate
+		apiTemplate = &api.KeyValueTemplate{
+			KeyStatic:   tmpl.KeyStatic,
+			KeyLength:   int64(tmpl.KeyLength),
+			ValueStatic: tmpl.ValueStatic,
+			ValueLength: int64(tmpl.ValueLength),
 		}
-		templates = append(templates, temp)
+		templates = append(templates, apiTemplate)
 	}
 	return templates
 }
@@ -72,20 +75,5 @@ func toWorkUnit(wu *WorkUnit) *api.Work {
 	return &api.Work{
 		DistType:   wu.Type,
 		Parameters: wu.Params,
-	}
-}
-
-func toLengthOrValue(low *LengthOrValue) *api.LengthOrStaticValue {
-	if low.IsLength {
-		return &api.LengthOrStaticValue{
-			LengthOrValue: &api.LengthOrStaticValue_Length{
-				Length: low.Length,
-			},
-		}
-	}
-	return &api.LengthOrStaticValue{
-		LengthOrValue: &api.LengthOrStaticValue_Value{
-			Value: low.Value,
-		},
 	}
 }

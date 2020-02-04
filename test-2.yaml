@@ -8,16 +8,19 @@ services:
         svc: svc02
     context:
       tags:
-        20: 40
+        - keyLength: 20
+          valueLength: 20
       baggage:
-        10: 30
+        - keyStatic: clientId
+          valueLength: 10
   - id: svc02
     envRef: env01
     sinkRef: agent1
     finalWork: work01
     context:
       tags:
-        20: 40
+        - keyLength: 20
+          valueLength: 20
 sinks:
   - id: agent1
     envRef: env01

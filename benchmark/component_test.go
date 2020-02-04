@@ -30,3 +30,14 @@ func TestWorkTypeParsing(t *testing.T) {
 		t.Fail()
 	}
 }
+
+func TestTagsAndBaggageVariants(t *testing.T) {
+	deployment, _ := ParseDeploymentDescription(filenameValid)
+	t.Logf("Service 0 has %d Tags.", len(deployment.Services[0].Context.Tags))
+	if deployment.Services[0].Context.Tags[0].KeyLength != 20 {
+		t.Fail()
+	}
+	if deployment.Services[0].Context.Tags[0].ValueLength != 40 {
+		t.Fail()
+	}
+}

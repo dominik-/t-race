@@ -97,37 +97,16 @@ type WorkUnit struct {
 //SpanContext contains Tags and Baggage; Tags are local context of services, sent to the tracing backend
 //Baggage is propagated to subsequent services (cf. OpenTracing specification https://github.com/opentracing/specification/blob/master/specification.md)
 type SpanContext struct {
-	Tags    map[LengthOrValue]LengthOrValue `yaml:"tags"`
-	Baggage map[LengthOrValue]LengthOrValue `yaml:"baggage"`
+	Tags    []*KeyValueTemplate `yaml:"tags"`
+	Baggage []*KeyValueTemplate `yaml:"baggage"`
 }
 
-//LengthOrValue is a helper type to represent either static or dynamically generated keys or values of tags and baggage items.
-type LengthOrValue struct {
-	Length   int64  `yaml:"-"`
-	Value    string `yaml:"-"`
-	IsLength bool   `yaml:"-"`
-}
-
-//UnmarshalYAML is the custom marshalling for LengthOrValue
-func (l LengthOrValue) UnmarshalYAML(unmarshal func(value interface{}) error) error {
-	//first try to marshal to int
-	var lengthValue int
-	err := unmarshal(&lengthValue)
-	if err != nil {
-		if errors.Is(err, &yaml.TypeError{}) {
-			var stringValue string
-			err = unmarshal(&stringValue)
-			if err != nil {
-				return err
-			}
-			l.Value = stringValue
-			return nil
-		}
-		return err
-	}
-	l.IsLength = true
-	l.Length = int64(lengthValue)
-	return nil
+//KeyValueTemplate is a container for key-value pairs, which can be described either by their length or a static string. If length is above 0, it is prioritized over static strings.
+type KeyValueTemplate struct {
+	KeyStatic   string `yaml:"keyStatic"`
+	KeyLength   int64  `yaml:"keyLength"`
+	ValueStatic string `yaml:"valueStatic"`
+	ValueLength int64  `yaml:"valueLength"`
 }
 
 //Sink is a wrapper around a backend service of a tracing system (something like a proxy/agent, storage/collector, stream pipeline or w/e).
