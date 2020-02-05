@@ -1,45 +1,46 @@
 services:
-  - id: svc01
+  - id: root1
     envRef: env01
     sinkRef: agent1
+    finalWork: work01
     units:
       - work: work02
         svc: svc02
-      - svc: svc03
     context:
       tags:
-        20: 40
-        20: 40
-        10: 128
-        8: 60
+        - keyLength: 20
+          valueLength: 20
       baggage:
-        10: 30
-        20: 20
-        40: 128
+        - keyStatic: clientId
+          valueLength: 10
   - id: svc02
     envRef: env01
     sinkRef: agent1
+    finalWork: work01
+    context:
+      tags:
+        - keyLength: 20
+          valueLength: 20
+  - id: root2
+    envRef: env01
+    sinkRef: agent1
+    finalWork: work01
     units:
       - work: work02
         svc: svc04
+      - svc: svc02
     context:
       tags:
-        20: 40
-        8: 60
-      baggage:
-        8: 18
-  - id: svc03
+        - keyLength: 20
+          valueLength: 40
+  - id: svc04
     envRef: env01
     sinkRef: agent1
     finalWork: work02
     context:
       tags:
-        20: 40
-        8: 60
-  - id: svc04
-    envRef: env01
-    sinkRef: agent1
-    finalWork: work01
+        - keyLength: 20
+          valueLength: 40
 sinks:
   - id: agent1
     envRef: env01
@@ -47,8 +48,8 @@ workUnits:
   - id: work01
     type: constant
     params:
-      value: 50000 #50ms
+      value: 20000
   - id: work02
     type: constant
     params:
-      value: 10000 #10ms
+      value: 10000

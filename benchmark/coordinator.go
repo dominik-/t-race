@@ -66,10 +66,22 @@ func Setup(deployment *Model, serviceMap, workerMap, sinkMap map[string]string, 
 func (benchmark *Benchmark) StartBenchmark() {
 	//start benchmark on all workers and keep receiving their results
 	//need to fork out into separate threads and write results to files/database
-	dirname := benchmark.Config.ResultDirPrefix + time.Now().Format(resultDirFormat)
-	err := os.Mkdir(dirname, 0700)
+	rootDir := "results"
+	fInfo, err := os.Stat(rootDir)
 	if err != nil {
-		log.Printf("Couldn't create output file, reason: %v", err)
+		if os.IsNotExist(err) {
+			err = os.Mkdir(rootDir, 0700)
+		}
+		log.Fatalf("Could't find or create output directory: %v", err)
+	} else {
+		if !fInfo.IsDir() {
+			log.Fatalf("A file called %s is conflicting with creating the output root directory.", rootDir)
+		}
+	}
+	dirname := rootDir + "/" + benchmark.Config.ResultDirPrefix + time.Now().Format(resultDirFormat)
+	err = os.Mkdir(dirname, 0700)
+	if err != nil {
+		log.Printf("Couldn't create output directory, reason: %v", err)
 	}
 	finishedChannels := make([]chan bool, 0)
 	for _, w := range benchmark.Workers {

@@ -70,10 +70,11 @@ type Service struct {
 	//Tags are key value pairs of arbitrary string values, which are later written with each trace. For simplicity, currently only string-values are allowed, extrapolate other data-types accordingly.
 	Context *SpanContext `yaml:"context"`
 	//Units are wrappers around calls to other services
-	Units        []*Unit   `yaml:"units,flow"`
-	IsRoot       bool      `yaml:"-"`
-	FinalWorkRef string    `yaml:"finalWork"`
-	FinalWork    *WorkUnit `yaml:"-"`
+	Units        []*Unit             `yaml:"units,flow"`
+	IsRoot       bool                `yaml:"-"`
+	FinalWorkRef string              `yaml:"finalWork"`
+	FinalWork    *WorkUnit           `yaml:"-"`
+	Predecessors map[string]*Service `yaml:"-"`
 }
 
 //Unit is a wrapper around some work to be done and a call to another service.
@@ -97,8 +98,8 @@ type WorkUnit struct {
 //SpanContext contains Tags and Baggage; Tags are local context of services, sent to the tracing backend
 //Baggage is propagated to subsequent services (cf. OpenTracing specification https://github.com/opentracing/specification/blob/master/specification.md)
 type SpanContext struct {
-	Tags    []*KeyValueTemplate `yaml:"tags"`
-	Baggage []*KeyValueTemplate `yaml:"baggage"`
+	Tags    []*KeyValueTemplate `yaml:"tags,flow"`
+	Baggage []*KeyValueTemplate `yaml:"baggage,flow"`
 }
 
 //KeyValueTemplate is a container for key-value pairs, which can be described either by their length or a static string. If length is above 0, it is prioritized over static strings.
@@ -150,17 +151,16 @@ func validateDeploymentAndResolveRefs(deployment *Model) {
 	envMap := make(map[string]int)
 	//create map of serviceId -> service for quick lookup
 	serviceIDMap := make(map[string]*Service)
-	for i, c := range deployment.Services {
+	for _, c := range deployment.Services {
 		serviceIDMap[c.Identifier] = c
 		if val, exists := envMap[c.EnvironmentRef]; exists {
 			envMap[c.EnvironmentRef] = val + 1
 		} else {
 			envMap[c.EnvironmentRef] = 1
 		}
-		//TODO: right now we make the first service the root service; should traverse all services and mark those without predecessor as root.
-		if i == 0 {
-			c.IsRoot = true
-		}
+		//Initially, mark all services as root and create empty predecessor list.
+		c.IsRoot = true
+		c.Predecessors = make(map[string]*Service)
 	}
 	sinkIDMap := make(map[string]*Sink)
 	for _, s := range deployment.Sinks {
@@ -190,6 +190,7 @@ func validateDeploymentAndResolveRefs(deployment *Model) {
 					log.Fatalf("Reference to non-existing successor id (%s) found in deployment: error in service %s. Aborting.", unit.SuccessorRef, c.Identifier)
 				}
 				unit.Successor = referencedService
+				unit.Successor.Predecessors[c.Identifier] = c
 			}
 			if unit.WorkRef != "" {
 				referencedWork, exists := workUnitIDMap[unit.WorkRef]
@@ -203,10 +204,14 @@ func validateDeploymentAndResolveRefs(deployment *Model) {
 			c.FinalWork = workUnitIDMap[c.FinalWorkRef]
 		}
 	}
-	//TODO currently, we assume there is exactly one root service, but the deployment would allow otherwise - what should we assume?
-	// (multiple roots would require multiple target throughputs and lead to possible contention between requests from different roots)...
+	for _, s := range deployment.Services {
+		if len(s.Predecessors) > 0 {
+			s.IsRoot = false
+		}
+	}
+	// (multiple roots could use multiple target throughputs and lead to possible contention between requests from different roots)...
 	//TODO check for loops in the service graph here
-	//TODO check for validity of refs to envs/sinks
+	//TODO check for validity
 }
 
 //AddServicesToEnvMap is a helper function which recursively traverses the services and adds them to a map grouped by Environments of the services. The EnvRef is an identifier for a deployment environment where multiple Services might be co-located.

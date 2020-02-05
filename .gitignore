@@ -2,7 +2,7 @@
 /.idea
 /vendor
 # Benchmark output dirs
-/results-*
+/results*
 
 # Terraform state files
 /provider/.terraform
