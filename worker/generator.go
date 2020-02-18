@@ -294,6 +294,9 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(parent context.Context, reporter
 		childrenCounter++
 	}
 	//Do final work locally.
+	//TODO problem(?): the following timer starts instantly in case of an async remote call - not afterwards. This means, it is possible that the
+	//Span is being closed (i.e., its context cancelled) before a response is returned, which leads to missed span timings.
+	//Solution? - Idea: need to wait for final work and all remote calls to finish, so we need channels or a counter, that syncs things back together.
 	if _, parsed := sg.WorkFinalDist.(*NoDistribution); !parsed {
 		<-time.NewTimer(sg.WorkFinalDist.GetNextValue()).C
 	}

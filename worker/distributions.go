@@ -136,7 +136,7 @@ func (gd *GaussianDistribution) SetRNGSeed(seed int64) {
 type ExpDistribution struct {
 	randomizer *rand.Rand
 	mean       float64 `yaml:"mean"`
-	lambda     float64 `yaml:-`
+	lambda     float64 `yaml:"-"`
 }
 
 func (ed *ExpDistribution) SetRNGSeed(seed int64) {
