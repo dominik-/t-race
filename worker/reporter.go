@@ -1,8 +1,6 @@
 package worker
 
-import (
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
-)
+import "github.com/dominik-/t-race/api"
 
 //ResultReporter is a wrapper around the collection and sending of results to the benchmark coordinator.
 type ResultReporter interface {

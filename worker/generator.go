@@ -9,11 +9,11 @@ import (
 	"reflect"
 	"time"
 
+	"github.com/dominik-/t-race/api"
 	"github.com/golang/protobuf/ptypes"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 
 	jaegerclient "github.com/uber/jaeger-client-go"
 	jaegercfg "github.com/uber/jaeger-client-go/config"

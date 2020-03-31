@@ -10,9 +10,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dominik-/t-race/api"
 	"github.com/opentracing/opentracing-go"
 	"github.com/prometheus/client_golang/prometheus"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/keepalive"
 )

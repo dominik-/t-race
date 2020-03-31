@@ -7,8 +7,8 @@ import (
 	"net"
 	"net/http"
 
+	"github.com/dominik-/t-race/api"
 	"github.com/prometheus/client_golang/prometheus/promhttp"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"google.golang.org/grpc"
 )
 

@@ -9,9 +9,9 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/dominik-/t-race/worker"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/worker"
 )
 
 var workersCmd = &cobra.Command{

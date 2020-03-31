@@ -4,10 +4,10 @@ import (
 	"log"
 	"path/filepath"
 
+	"github.com/dominik-/t-race/benchmark"
+	"github.com/dominik-/t-race/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/benchmark"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/provider"
 )
 
 var benchCmd = &cobra.Command{

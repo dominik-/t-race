@@ -4,8 +4,8 @@ import (
 	"encoding/binary"
 	"fmt"
 
+	"github.com/dominik-/t-race/api"
 	"github.com/golang/protobuf/ptypes"
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 )
 
 type BenchmarkConfig struct {

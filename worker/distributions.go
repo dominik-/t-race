@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
+	"github.com/dominik-/t-race/api"
 )
 
 var src = rand.NewSource(time.Now().UnixNano())

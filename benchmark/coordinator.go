@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/dominik-/t-race/api"
 	"github.com/gocarina/gocsv"
 
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
 	"google.golang.org/grpc"
 )
 

@@ -1,8 +1,6 @@
 package main
 
-import (
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/cmd"
-)
+import "github.com/dominik-/t-race/cmd"
 
 func main() {
 	cmd.Execute()

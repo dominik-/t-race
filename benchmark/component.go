@@ -6,7 +6,7 @@ import (
 	"os"
 	"strings"
 
-	"gitlab.tubit.tu-berlin.de/dominik-ernst/tracer-benchmarks/api"
+	"github.com/dominik-/t-race/api"
 	"gopkg.in/yaml.v2"
 )
 
