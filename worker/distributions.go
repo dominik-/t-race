@@ -23,6 +23,7 @@ func init() {
 	//rng := rand.New(rand.NewSource(time.Now().UnixNano()))
 }
 
+//Alphabet for random key/value generation from https://stackoverflow.com/questions/22892120/how-to-generate-a-random-string-of-a-fixed-length-in-go
 const letterBytes = "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ1234567890"
 const (
 	letterIdxBits = 7                    // 7 bits to represent a letter index, because we have 26*2 + 10

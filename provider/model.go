@@ -62,7 +62,7 @@ func (p *StaticProvider) CreateEnvironments(envRefs []string) {
 	}
 }
 
-//
+//AllocateServices maps services/worker addresses from the StaticProvider to the benchmark config.
 func (p *StaticProvider) AllocateServices(svcs []*benchmark.Service) {
 	p.SvcMap = make(map[string]string, len(svcs))
 	p.WorkerMap = make(map[string]string, len(svcs))
@@ -73,6 +73,7 @@ func (p *StaticProvider) AllocateServices(svcs []*benchmark.Service) {
 	}
 }
 
+//AllocateSinks maps SUT addresses from the StaticProvider to the benchmark config.
 func (p *StaticProvider) AllocateSinks(sinks []*benchmark.Sink) {
 	p.SinkMap = make(map[string]string, len(sinks))
 	for i, s := range sinks {
