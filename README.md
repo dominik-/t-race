@@ -62,11 +62,31 @@ The initial goal was to measure latency of traces, in particular:
 * **Trace completion time**: time between the first and last spans of a trace being completed
 * **Trace visibility delay**: time until read-access of a completed trace is possible (i.e., until it has been written to the database)
 
-The latter was supported by adding instrumentation...TODO?
+The latter was supported by adding timestamps to they writer-implementation of Jaeger's cassandra adapter, but is not an essential part of t-race.
+
+## Concepts
+t-race was created with the idea of *monitoring your monitors*. Software is being developed as microservices and deployed into sophisticated, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But, how well exactly are these tools suited for specific types of analyses? Because in a real-time production setting, it does not make sense to evaluate the quality of observability tooling (nested monitoring would be incredibly inefficient), I aimed to create a benchmark, which would enable offline reasoning about *choices in deployment and configuaration of observability tooling*.
+
+The general idea behind t-race is consequently to create a repeatable and generic benchmark for observability tools. As we want to go beyond testing the backend of observability tools (which probably would come down to test the maximum throughput for writing to a database), we need to emulate services generating observability data in a realistic setting. We do so by *emulating service architectures*, which mimic the complexity of actual, large scale deployments.
+
+TODO: the following parts are incomplete!
+
+### Service Model - Call Hierachy
+The basic unit of the architecture description used as input to a benchmark is a *service*. Services are abstractions of a unit of software that has some internal functionality and possibly does synchronous and asynchronous calls to other services.
+
+### Trace Generation Model
 
 ## Limitations / Roadmap
 
-In the future, we plan to integrate different providers' interfaces, automating the deployment of workers. There is a (very basic) `provider` interface conceptualizing this right now, but only the "static" provider is implemented, which means you need to supply worker IPs etc. through a JSON config file and all workers are assumed to see each other on a local network.
+DISCLAIMER: t-race will have some bugs and is not always perfectly intuitive to use, since it started as a single-person research endeavor (and also served as a learning experience of golang).
+
+### Roadmap
+
+An automated aggregation of all relevant, trace- and SUT-related data and configurations.
+
+More sophisticated analysis of results (some starting points in the [Jupyter Notebook](analysis.ipynb)) and formalization of benchmarking metrics.
+
+Down the road, I plan to integrate different providers' interfaces, automating the deployment of workers. There is a (very basic) `provider` interface conceptualizing this right now, but only the "static" provider is implemented, which means you need to supply worker IPs etc. through a JSON config file and all workers are assumed to see each other on a local network.
 
 ## Links
 CQL to CSV export:
