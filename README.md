@@ -72,7 +72,7 @@ The general idea behind t-race is consequently to create a repeatable and generi
 TODO: the following parts are incomplete!
 
 ### Service Model - Call Hierachy
-The basic unit of the architecture description used as input to a benchmark is a *service*. Services are abstractions of a unit of software that has some internal functionality and possibly does synchronous and asynchronous calls to other services.
+The basic unit of the architecture description used as input to a benchmark is a *service*. Services are an abstraction of a unit of software that has some internal functionality and possibly does synchronous and asynchronous calls to other services.
 
 ### Trace Generation Model
 
@@ -88,6 +88,11 @@ More sophisticated analysis of results (some starting points in the [Jupyter Not
 
 Down the road, I plan to integrate different providers' interfaces, automating the deployment of workers. There is a (very basic) `provider` interface conceptualizing this right now, but only the "static" provider is implemented, which means you need to supply worker IPs etc. through a JSON config file and all workers are assumed to see each other on a local network.
 
-## Links
+## Useful Stuff / Links
 CQL to CSV export:
 https://docs.datastax.com/en/archived/cql/3.3/cql/cql_reference/cqlshCopy.html
+
+```
+docker run -it --network t-race_tracer-backend -v ${PWD}/results:/results --rm cassandra:3.9 cqlsh cassandra
+```
+COPY jaeger_v1_dc1.traces TO '/results/traces.csv' WITH HEADER=true;
