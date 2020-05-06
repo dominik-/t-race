@@ -1,6 +1,6 @@
 # t-race
 
-Tool to benchmark tracing systems by emulating (possibly complex) multi-service deployments. Implemented as a single executable in Golang.
+Tool to benchmark tracing systems by emulating (possibly complex) multi-service deployments. Implemented as a single executable in Golang. Distributed tracing systems are consequently t-race's SUT (System under Test).
 
 Inputs for the benchmark are a model of a deployed application (_Service Model_, e.g., `test-2.yaml`), a set of _Workers_ and a set of _Sinks_ (e.g., `deployment_localhost_2.json`). Sinks are the endpoints of the distributed tracing backend.
 
@@ -48,21 +48,15 @@ As the only currently supported SUT is Jaeger, this means a Jaeger cluster needs
 4. Configure your master with benchmark parameters. See `t-race bench -h` for available parameters. The binary also supports reading a configuration from YAML etc.
 
 ### Benchmark Execution
-* Start benchmark execution with `t-race bench`. The benchmark master should report receiving result packages in regular intervals.
-* When the configured benchmark duration has passed, you can check results of each worker as *.csv files in the results directory.
-* Workers keep running after a benchmark, you can re-use them for multiple benchmarks, BUT: be aware that there may be minor side-effects from previous benchmark runs in the SUT (and I'm not entirely confident that there are no side-effects in t-race itself).
+1. Start benchmark execution with `t-race bench`. The benchmark master should report receiving result packages in regular intervals.
+1. When the configured benchmark duration has passed, you can check results of each worker as *.csv files in the results directory.
+1. Workers keep running after a benchmark, you can re-use them for multiple benchmark runs, BUT: be aware that there may be minor side-effects from previous benchmark runs in the SUT (and I'm not 100% confident that there are no side-effects in t-race itself).
 
 ### Result Collection
 In total, there are three types of data collected during a benchmark run:
-* Latency measurements from client side (i.e., workers implemented the SUT client libraries) collected by the benchmark master.
+* Latency measurements from client side (i.e., workers implemented the SUT client libraries) - collected by the benchmark master.
 * Traces, stored in the SUT's backend database.
 * Monitoring data collected from workers (and possibly the SUT), stored by Prometheus.
-
-The initial goal was to measure latency of traces, in particular:
-* **Trace completion time**: time between the first and last spans of a trace being completed
-* **Trace visibility delay**: time until read-access of a completed trace is possible (i.e., until it has been written to the database)
-
-The latter was supported by adding timestamps to they writer-implementation of Jaeger's cassandra adapter, but is not an essential part of t-race.
 
 ## Concepts
 t-race was created with the idea of *monitoring your monitors*. Software is being developed as microservices and deployed into sophisticated, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But, how well exactly are these tools suited for specific types of analyses? Because in a real-time production setting, it does not make sense to evaluate the quality of observability tooling (nested monitoring would be incredibly inefficient), I aimed to create a benchmark, which would enable offline reasoning about *choices in deployment and configuaration of observability tooling*.
