@@ -12,7 +12,7 @@ As of now, t-Race implements an adapter for Jaeger https://www.jaegertracing.io/
 ## Overview
 t-race follows a master-slave architecture, with the slaves (called *workers*) each emulating a service of an emulated software architecture. Workers without a predecessor are `root`, i.e., they use the configured throughput rate to generate requests. All sucessive workers then are called in an RPC-style fashion. t-race relies on [gRPC](https://grpc.io) streaming to collect of results at the master. See the figure below for the overall architecture of t-race.
 
-![t-race architecture overview](architecture.png "Architecture of t-race, showing a simplified deployment with a single master and three workers")
+![t-race architecture overview](doc/architecture.png "Architecture of t-race, showing a simplified deployment with a single master and three workers")
 
 ## Requirements
 Currently I don't provide pre-compiled binaries, that means you need to build t-race yourself. Other than a binary for the OS of your choice, there are no further requirements to running t-race - except, obviously, for a SUT.
@@ -71,10 +71,38 @@ The general idea behind t-race is consequently to create a repeatable and generi
 
 TODO: the following parts are incomplete!
 
-### Service Model - Call Hierachy
-The basic unit of the architecture description used as input to a benchmark is a *service*. Services are an abstraction of a unit of software that has some internal functionality and possibly does synchronous and asynchronous calls to other services.
+### Services and Call Hierachy
+The basic unit of the architecture description used as input to a benchmark is a *service*. Services are an abstraction of a unit of software that has some internal functionality and possibly does synchronous and asynchronous calls to other services. Each service is deployed to an *environment* and sends generated traces to a *sink*. The internal functionality of service is emulated by a delay, which is called *work*. A pair of *work* and a call to another service are each paired into a *unit*.
+
+A service can have multiple *units*, which are executed in order of their appearance. The last property of a service related to its embedding into a call hierarchy is a *finalWork* property, an additional delay after all calls to *units* have completed. To further illustrate, consider the example below.
+
+```yaml
+services:
+  - id: svc01
+    envRef: env01
+    sinkRef: backendA
+    finalWork: workB
+    units:
+      - work: workA
+        svc: svc02
+	  - work: workA
+	  	svc: svc03
+```
 
 ### Trace Generation Model
+Trace generation can be split into two parts: the generation of hierachically structured spans, constituting traces (section TODO #ref) and the generation of key-value structured trace context data and baggage (section TODO #ref).
+
+t-race generates traces by emulating actual processing, called *work*, and communication between services, which are invoked by *calls*. Work and calls are paired into *Units*. (see also Section on [[Services and Call Hierarchy]])). Each worker emulates a single service, which sequentially processes all units. Work is done at the beggining of each unit, which is why it is referred to as *workBefore*. Calls with workBefore set, wait for the previous call to complete. That means, all calls with workBefore set to any value, are *synchronous* calls. If workBefore is not set, we assume the call to the service of a unit to be done *in parallel* to the previous one. More specifically, it executes an async gRPC call to the referenced successive service and proceeds to process the following unit. The following figure visualizes the trace generation sequence.
+
+![t-race trace generation model](doc/trace-gen-flow.png "Trace generation model of t-race, demonstrating the generated traces for svc01 making two sequential calls to scv02 and svc03")
+
+As shown in this figure, t-race creates a new child span for each remote call, which allows to distinguish between workBefore done locally, emulating some sort of pre-processing, and the duration of the actual call to the remote service.
+
+Durations for work can be either hardcoded to static values or sampled from different distributions, with currently normal- and exponential distributions being implemented.
+
+t-race differentiates betwen called services and *root* services. Root services are services without predecessors, i.e. are highest in a tree-like hierarchy. They act as initiators of trace generation, producing traces and calling their successors with the throughput configured by the benchmark. Throughput is equal for all root services.
+
+Metadata is in key-value format, with only strings supported for both *tags* and *baggage*. They can be either static values, with strings provided in the architecture description YAML, or random values with given fixed length. Random value trace metadata is generated once during bootstrapping of each worker, i.e. remains the throughout the course of one benchmark.
 
 ## Limitations / Roadmap
 
