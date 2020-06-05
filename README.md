@@ -59,16 +59,16 @@ In total, there are three types of data collected during a benchmark run:
 * Monitoring data collected from workers (and possibly the SUT), stored by Prometheus.
 
 ## Concepts
-t-race was created with the idea of *monitoring your monitors*. Software is being developed as microservices and deployed into sophisticated, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But, how well exactly are these tools suited for specific types of analyses, e.g. RCA vs. real-time monitoring? In a running, real-time production setting, it does not make sense to evaluate the quality of observability tooling, as this would lead to a layer of monitoring to monitor the monitors. As nested monitoring would be incredibly inefficient, I aimed to create a benchmark, which would enable offline reasoning about *choices in deployment and configuaration of observability tooling*.
+t-race was created with the idea of *monitoring your monitors*. Software is being developed as microservices and deployed into sophisticated, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But how well suited exactly are these tools for specific types of analyses, e.g. root cause analysis vs. real-time monitoring? In a running production setting, it does not make sense to evaluate the quality of observability tooling, as this would lead to a second layer of monitoring - to monitor the monitors. As nested monitoring would be incredibly inefficient, I aimed to create a benchmark, which would enable reasoning about *choices in deployment and configuaration of observability tooling* in an offline setting.
 
-The general idea behind t-race is consequently to create a repeatable and generic benchmark for observability tools. As we want to go beyond testing the backend of observability tools (which probably would come down to test the maximum throughput for writing to a database), we need to emulate services generating observability data in a semi-realistic setting. We do so by *emulating service architectures*, which mimic the complexity of actual, large scale deployments.
+The fundamental idea behind t-race is consequently to create a repeatable and generic benchmark for observability tools. As we want to go beyond testing the backend of observability tools (which probably would come down to test the maximum throughput for writing to a database), we need to emulate services generating observability data in a semi-realistic setting. We do so by *emulating service architectures*, which mimic the complexity of actual, large scale deployments.
 
 TODO: the following parts might be incomplete!
 
 ### Services and Call Hierachy
 The basic unit of the architecture description used as input to a benchmark is a *service*. Services are an abstraction of a unit of software that has some internal functionality and possibly does synchronous and asynchronous calls to other services. Each service is deployed to an *environment* and sends generated traces to a *sink*. The internal functionality of service is emulated by a delay, which is called *work*. A pair of *work* and a call to another service are each paired into a *unit*.
 
-A service can have multiple *units*, which are executed in order of their appearance. The last property of a service related to its embedding into a call hierarchy is a *finalWork* property, an additional delay after all calls to *units* have completed. To further illustrate, consider the example below.
+A service can have multiple *units*, which are executed in order of their appearance. The last property of a service related to its embedding into a call hierarchy is *finalWork*, an additional delay after all calls to *units* have completed. To further illustrate, consider the example below.
 
 ```yaml
 services:
@@ -79,14 +79,14 @@ services:
     units:
       - work: workA
         svc: svc02
-	  - work: workA
-	  	svc: svc03
+	    - work: workA
+	  	  svc: svc03
 ```
 
 ### Trace Generation Model
 Trace generation can be split into two parts: the generation of hierachically structured spans, constituting traces (section TODO #ref) and the generation of key-value structured trace context data and baggage (section TODO #ref).
 
-t-race generates traces by emulating actual processing, called *work*, and communication between services, which are invoked by *calls*. Work and calls are paired into *Units*. (see also Section on [[Services and Call Hierarchy]])). Each worker emulates a single service, which sequentially processes all units. Work is done at the beggining of each unit, which is why it is referred to as *workBefore*. Calls with workBefore set, wait for the previous call to complete. That means, all calls with workBefore set to any value, are *synchronous* calls. If workBefore is not set, we assume the call to the service of a unit to be done *in parallel* to the previous one. More specifically, it executes an async gRPC call to the referenced successive service and proceeds to process the following unit. The following figure visualizes the trace generation sequence.
+t-race generates traces by emulating actual processing, called *work*, and communication between services, which are invoked by *calls*. Work and calls are paired into *Units*. (see also Section on [[Services and Call Hierarchy]])). Each worker emulates a single service, which sequentially processes all units. Work is done at the beggining of each unit, which is why it is referred to as *workBefore*. Calls with workBefore set wait for the previous call to complete. That means, all calls with workBefore set to any value, are *synchronous* calls. If workBefore is not set, we assume the call to the service of a unit to be done *in parallel* to the previous one. To be precise, it executes an async gRPC call to the referenced successive service and proceeds to process the following unit. The following figure visualizes the trace generation sequence.
 
 ![t-race trace generation model](doc/trace-gen-flow.png "Trace generation model of t-race, demonstrating the generated traces for svc01 making two sequential calls to scv02 and svc03")
 
