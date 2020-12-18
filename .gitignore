@@ -10,7 +10,7 @@
 *.tfstate.backup
 
 # Binaries
-tracer-benchmarks
+t-race
 *.exe
 
 # Local hacky shellscripts
