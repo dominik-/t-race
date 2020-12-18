@@ -72,7 +72,9 @@ func (benchmark *Benchmark) StartBenchmark() {
 		if os.IsNotExist(err) {
 			err = os.Mkdir(rootDir, 0700)
 		}
-		log.Fatalf("Could't find or create output directory: %v", err)
+		if err != nil {
+			log.Fatalf("Could't find or create output directory: %v", err)
+		}
 	} else {
 		if !fInfo.IsDir() {
 			log.Fatalf("A file called %s is conflicting with creating the output root directory.", rootDir)

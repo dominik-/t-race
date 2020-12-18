@@ -2,14 +2,14 @@
     "workers" : [
         { 
             "benchmark" : "localhost:7000",
-            "service" : "host.docker.internal:8000"
+            "service" : "worker-0:8000"
         },
         {
             "benchmark": "localhost:7001",
-            "service": "host.docker.internal:8001"
+            "service": "worker-1:8000"
         }
     ],
     "sinks": [
-        "host.docker.internal:6831"
+        "jaeger-agent:6831"
     ]
 }

@@ -11,6 +11,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -a -installsuffix cgo -o t-race .
 FROM alpine:latest  
 
 RUN apk --no-cache add ca-certificates
+RUN apk add iproute2
 
 WORKDIR /root/
 

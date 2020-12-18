@@ -1,0 +1,99 @@
+services:
+  - id: frontend-browse
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: short1
+        svc: ad
+      - svc: product-catalog
+      - svc: recommendation
+    context:
+      tags:
+        - keyLength: 20
+          valueLength: 40
+        - keyStatic: method
+          valueLength: 60
+      baggage:
+        - keyLength: 10
+          valueLength: 30
+  - id: frontend-cart
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: short1
+        svc: ad
+      - svc: cart
+      - svc: recommendation
+      - svc: product-catalog
+  - id: frontend-order
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: short1
+        svc: ad
+      - svc: checkout
+  - id: checkout
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - work: short1
+        svc: cart
+      - work: none
+        svc: product-catalog
+      - work: none
+        svc: currency
+      - work: none
+        svc: payment
+      - work: none
+        svc: shipping
+      - svc: email
+  - id: ad
+    envRef: env01
+    sinkRef: agent1
+    units:
+  - id: currency
+    envRef: env01
+    sinkRef: agent1
+    units:
+  - id: payment
+    envRef: env01
+    sinkRef: agent1
+    units:
+  - id: shipping
+    envRef: env01
+    sinkRef: agent1
+    units:
+  - id: email
+    envRef: env01
+    sinkRef: agent1
+    units:
+  - id: product-catalog
+    envRef: env01
+    sinkRef: agent1
+    units:
+  - id: recommendation
+    envRef: env01
+    sinkRef: agent1
+    units:
+  - id: cart
+    envRef: env01
+    sinkRef: agent1
+    units:
+
+sinks:
+  - id: agent1
+    type: provided
+    hostport: localhost:6831
+    envRef: env01
+  - id: agent2
+    type: provided
+    envRef: env02
+  - id: agent3
+    envRef: env03
+    type: provided
+workUnits:
+  - id: short1
+    type: gaussian
+    params:
+      mean: 20
+      stddev: 2
