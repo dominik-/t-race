@@ -1,0 +1,55 @@
+{
+    "workers" : [
+        { 
+            "benchmark" : "localhost:7000",
+            "service" : "localhost:8000"
+        },
+        {
+            "benchmark": "localhost:7001",
+            "service": "localhost:8001"
+        },
+        {
+            "benchmark": "localhost:7002",
+            "service": "localhost:8002"
+        },
+        {
+            "benchmark": "localhost:7003",
+            "service": "localhost:8003"
+        },
+        {
+            "benchmark": "localhost:7004",
+            "service": "localhost:8004"
+        },
+        {
+            "benchmark": "localhost:7005",
+            "service": "localhost:8005"
+        },
+        {
+            "benchmark": "localhost:7006",
+            "service": "localhost:8006"
+        },
+        {
+            "benchmark": "localhost:7007",
+            "service": "localhost:8007"
+        },
+        {
+            "benchmark": "localhost:7008",
+            "service": "localhost:8008"
+        },
+        {
+            "benchmark": "localhost:7009",
+            "service": "localhost:8009"
+        },
+        {
+            "benchmark": "localhost:7010",
+            "service": "localhost:8010"
+        },
+        {
+            "benchmark": "localhost:7011",
+            "service": "localhost:8011"
+        }
+    ],
+    "sinks": [
+        "localhost:6831"
+    ]
+}

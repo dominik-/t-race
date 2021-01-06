@@ -19,6 +19,12 @@ services:
   - id: frontend-cart
     envRef: env01
     sinkRef: agent1
+    context:
+      tags:
+        - keyLength: 20
+          valueLength: 40
+        - keyStatic: method
+          valueLength: 60
     units:
       - work: short1
         svc: ad
@@ -28,6 +34,12 @@ services:
   - id: frontend-order
     envRef: env01
     sinkRef: agent1
+    context:
+      tags:
+        - keyLength: 20
+          valueLength: 40
+        - keyStatic: method
+          valueLength: 60
     units:
       - work: short1
         svc: ad
@@ -51,49 +63,63 @@ services:
     envRef: env01
     sinkRef: agent1
     units:
+      - work: constant1
   - id: currency
     envRef: env01
     sinkRef: agent1
     units:
+      - work: constant1
   - id: payment
     envRef: env01
     sinkRef: agent1
     units:
+      - work: constant1
   - id: shipping
     envRef: env01
     sinkRef: agent1
     units:
+      - work: constant1
   - id: email
     envRef: env01
     sinkRef: agent1
     units:
+      - work: constant1
   - id: product-catalog
     envRef: env01
     sinkRef: agent1
     units:
+      - work: constant1
   - id: recommendation
     envRef: env01
     sinkRef: agent1
     units:
+      - work: short1
+        svc: product-catalog
   - id: cart
     envRef: env01
     sinkRef: agent1
     units:
+      - work: cache-lookup
 
 sinks:
   - id: agent1
     type: provided
     hostport: localhost:6831
     envRef: env01
-  - id: agent2
-    type: provided
-    envRef: env02
-  - id: agent3
-    envRef: env03
-    type: provided
 workUnits:
   - id: short1
     type: gaussian
     params:
-      mean: 20
-      stddev: 2
+      mean: 2000
+      stddev: 200
+  - id: constant1
+    type: constant
+    params:
+      value: 10000
+  - id: cache-lookup
+    type: exponential
+    params:
+      mean: 1000
+      lambda: 2
+  - id: none
+    type: none
