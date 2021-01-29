@@ -1,7 +1,6 @@
 package api
 
 import (
-	"errors"
 	"strings"
 )
 
@@ -14,14 +13,26 @@ func (r *RelationshipType) UnmarshalYAML(unmarshal func(value interface{}) error
 	stringValue = strings.ToLower(stringValue)
 	//log.Printf("Parsed string value in YAML: %s\n", stringValue)
 	switch stringValue {
-	case "c":
+	case "child":
 		*r = RelationshipType_CHILD
 		break
-	case "f":
-		*r = RelationshipType_FOLLOWING
+	case "follows":
+		*r = RelationshipType_FOLLOWS
+		break
+	case "client":
+		*r = RelationshipType_CLIENT
+		break
+	case "server":
+		*r = RelationshipType_SERVER
+		break
+	case "consumer":
+		*r = RelationshipType_CONSUMER
+		break
+	case "producer":
+		*r = RelationshipType_PRODUCER
 		break
 	default:
-		return errors.New("couldnt parse relationship type, unknown value. must be either 'C' or 'F'")
+		*r = RelationshipType_INTERNAL
 	}
 	return nil
 }

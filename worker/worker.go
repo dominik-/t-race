@@ -27,6 +27,8 @@ type Worker struct {
 	SamplingParams   []float64
 	SetupDone        bool
 	MetricsRegistry  prometheus.Registerer
+	UnitExecutorMap  map[string]Unit
+	api.UnimplementedBenchmarkWorkerServer
 }
 
 func (w *Worker) GetTracer() opentracing.Tracer {
@@ -43,7 +45,7 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	defer close(stopChan)
 
 	//Create sink (i.e. tracing backend) connection
-	tracer, closer, err := InitTracer(config.SinkHostPort, config.OperationName, w.SamplingStrategy, w.SamplingParams[0])
+	tracer, closer, err := InitTracer(config.SinkHostPort, config.ServiceName, w.SamplingStrategy, w.SamplingParams[0])
 	// we can't go on if this didnt work
 	if err != nil {
 		log.Fatalf("Couldn't create tracer with given config. Error was: %v", err)
@@ -63,6 +65,7 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 		w.SetupDone = true
 	}
 	w.Reporter = NewBufferingReporter(stream, 500)
+	w.Config = config
 	doneChannel := make(chan bool, 1)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", w.ServicePort))
 	if err != nil {
@@ -74,16 +77,18 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 		}),
 	)
 	api.RegisterBenchmarkWorkerServer(server, w)
-	//start server in separate goroutine because we need to look at benchmark runtime here.
+	//start server in separate goroutine so we don't block here
 	go server.Serve(listener)
 	log.Printf("Started worker. Config: %v\n", config)
-	w.Generator = NewOpenTracingSpanGenerator(tracer, config, w.SpanDurationHist)
-	if config.Root {
-		//We create a new done channel here if this is a root service
-		//TODO: Ideally, the "default" case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
-		//indicating that the root-workers no longer send requests;
-		doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, calculateIntervalByThroughput(config.TargetThroughput), w.Reporter)
+	w.UnitExecutorMap = make(map[string]Unit)
+	for _, unit := range config.Units {
+		w.UnitExecutorMap[unit.Identifier], err = CreateUnitExecutorFromConfig(unit, w)
 	}
+	w.Generator = NewOpenTracingSpanGenerator(tracer, w)
+	//We create a new done channel here if this is a root service
+	//TODO: Ideally, the "default" case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
+	//indicating that the root-workers no longer send requests;
+	doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, calculateIntervalByThroughput(config.TargetThroughput), w.Reporter)
 	// go func() {
 	// 	//TODO make report interval configurable; together with channel buffer size, this limits the maximum throughput!
 	// 	reporterCollectionTicker := time.NewTicker(5 * time.Second)
@@ -115,12 +120,7 @@ WorkerLoop:
 					log.Println("Benchmark ended regularly after runtime.")
 					break WorkerLoop
 				case <-limit.C:
-					if config.Root {
-						log.Printf("Benchmark shut down forcefully after runtime plus tolerance of %v.\n", tolerance)
-					} else {
-						log.Printf("Benchmark shut down after runtime plus tolerance of %v.\n", tolerance)
-					}
-
+					log.Printf("Benchmark shut down after runtime plus tolerance of %v.\n", tolerance)
 					break WorkerLoop
 				}
 			}
@@ -160,8 +160,7 @@ func calculateIntervalByThroughput(targetThroughput int64) time.Duration {
 	return time.Duration(1000000/targetThroughput) * time.Microsecond
 }
 
-func (w *Worker) Call(ctx context.Context, in *api.Empty) (*api.Empty, error) {
-	//Delegate to to generator for all successor remote calls.
-	w.Generator.DoUnitCalls(ctx, w.Reporter)
+func (w *Worker) Call(ctx context.Context, id *api.DispatchId) (*api.Empty, error) {
+	w.UnitExecutorMap[id.UnitReference].Invoke(ctx, w.GetTracer())
 	return &api.Empty{}, nil
 }

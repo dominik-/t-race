@@ -1,34 +1,46 @@
 syntax = "proto3";
+option go_package = "api";
+
 package api;
 
 import "google/protobuf/timestamp.proto";
 
 service BenchmarkWorker {
     rpc StartWorker(WorkerConfiguration) returns (stream ResultPackage) {}
-    rpc Call(Empty) returns (Empty) {}
+    rpc Call(DispatchId) returns (Empty) {}
 }
 
 message WorkerConfiguration {
     string worker_id = 1;
-    string operation_name = 2;
-    //root indicates whether the worker is generating load directly and independently (root=true), or listens to requests (through the Call method).
-    bool root = 3;
+    string service_name = 2;
     int64 runtime_seconds = 4;
     int64 target_throughput = 5;
     //the sink is the backend address to send traces to, i.e. an endpoint of an opentracing-compatible tracer
     string sink_host_port = 6;
-    ContextTemplate context = 7;
-    //a final unit of local "work", also used if no subsequent calls are done by this worker
-    Work work_final = 8;
     repeated Unit units = 9;
 }
 
 //Unit captures a request-response interaction with another emulated service.
 message Unit {
-    RelationshipType rel_type = 1;
+    string identifier = 1;
+    RelationshipType rel_type = 2;
     //This is sampled and waited for before the call is dispatched to the next worker listening at invoked_host_port.
-    Work work_before = 2;
-    string invoked_host_port = 3;
+    Work work_before = 3;
+    ContextTemplate context = 5;
+    repeated UnitRef inputs = 6;
+    repeated UnitRef successors = 7;
+    //this ration indicates how throughput of the service is distributed across units. If this is 0, then the unit is not a "root" unit and consequently not actively generating load.
+    double throughputRatio = 8;
+    bool sync = 9;
+    bool isServer = 10;
+}
+
+message UnitRef {
+    string serviceId = 1;
+    string unitId = 2;
+    bool sync = 3;
+    bool isRemote = 4; //do we need this here? likely not, just look up the service by id from deployment?
+    string host_port = 5; //do we need this here? likely not, just look up the service by id from deployment?
 }
 
 message Work {
@@ -55,7 +67,8 @@ message Result {
 
 message ContextTemplate {
     repeated KeyValueTemplate tags = 1;
-    repeated KeyValueTemplate baggage = 2;
+    repeated KeyValueTemplate logs = 2;
+    repeated KeyValueTemplate baggage = 3;
 }
 
 message ResultPackage {
@@ -64,10 +77,18 @@ message ResultPackage {
     repeated Result results = 3;
 }
 
-message Empty {
+message DispatchId {
+    string unitReference = 1;
 }
+
+message Empty {}
 
 enum RelationshipType {
     CHILD = 0;
-    FOLLOWING = 1;
+    FOLLOWS = 1;
+	SERVER = 2;
+	CLIENT = 3;
+	PRODUCER = 4;
+	CONSUMER = 5;
+	INTERNAL = 6;
 }

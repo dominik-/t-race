@@ -1,10 +1,12 @@
 package cmd
 
 import (
+	"encoding/json"
 	"log"
 	"path/filepath"
 
 	"github.com/dominik-/t-race/benchmark"
+	"github.com/dominik-/t-race/executionmodel"
 	"github.com/dominik-/t-race/provider"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -43,26 +45,32 @@ func init() {
 }
 
 func ExecuteBenchmark(cmd *cobra.Command, args []string) {
-	config := &benchmark.BenchmarkConfig{
+	config := &executionmodel.BenchmarkConfig{
 		Throughput:      baseThroughput,
 		Runtime:         runtime,
 		ResultDirPrefix: resultDirPrefix,
 	}
-	deployment, err := benchmark.ParseDeploymentDescription(serviceFile)
+	architecture, err := executionmodel.ParseArchitectureDescription(serviceFile)
 	if err != nil {
 		log.Fatalf("Parsing of service descriptor file failed: %v", err)
 	}
 	log.Println("Parsed service descriptions successfully.")
+	log.Printf("Architecture description is: %+v\n", architecture)
+	s, _ := json.MarshalIndent(architecture, "", "\t")
+	log.Println(string(s))
 	prov, err := provider.NewStaticProvider(deploymentFile)
 	if err != nil {
 		log.Fatalf("Error parsing the deployment file: %v", err)
 	}
 	log.Println("Parsed static deployment successfully.")
-	prov.CreateEnvironments(deployment.Environments)
-	prov.AllocateServices(deployment.Services)
-	prov.AllocateSinks(deployment.Sinks)
+	prov.CreateEnvironments(architecture.Environments)
+	prov.AllocateServices(architecture.Services)
+	prov.AllocateSinks(architecture.Sinks)
 
-	b := benchmark.Setup(deployment, prov.SvcMap, prov.WorkerMap, prov.SinkMap, config)
+	log.Printf("Architecture with allocated provider resources: %v\n", architecture)
+	s, _ = json.MarshalIndent(architecture, "", "\t")
+	log.Println(string(s))
+	b := benchmark.Setup(architecture, prov.SvcMap, prov.WorkerMap, prov.SinkMap, config)
 	b.StartBenchmark()
 }
 

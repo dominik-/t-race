@@ -1,16 +1,18 @@
 # t-race
 
-Tool to benchmark tracing systems by emulating (possibly complex) multi-service deployments. Implemented as a single executable in Golang. Distributed tracing systems are consequently t-race's SUT (System under Test).
+Tool to model the observable execution of "microservice-like" architectures. Implemented as a single executable in Golang. Observability systems are t-race's SUT (System under Test).
 
-Inputs for the benchmark are a model of a deployed application (_Service Model_, e.g., `test-2.yaml`), a set of _Workers_ and a set of _Sinks_ (e.g., `deployment_localhost_2.json`). Sinks are the endpoints of the distributed tracing backend.
+_Disclaimer: this is a research project - there might be issues and lack of documentation._
+
+t-race's goal is to emulate a deployed application's observable behavior (described by an _architecture_, e.g., `test-2.yaml`), a set of _Workers_ and a set of _Sinks_ (e.g., `deployment_localhost_2.json`). Sinks are the endpoints of an observability backend system. Currently, only distributed tracing systems are supported as the backend.
 
 t-race is under development and considered a prototype. Use at your own discretion.
 
 ## Supported SUTs
-As of now, t-Race implements an adapter for Jaeger https://www.jaegertracing.io/docs/1.11/. Traces are generated in the OpenTracing https://opentracing.io/ format. Workers communicate using gRPC, which is using HTTP2 for transport, i.e., propagated trace context data is marshalled to HTTP custom headers, check https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md for some details.
+As of now, t-race implements an adapter for Jaeger https://www.jaegertracing.io/docs/1.11/. Traces are generated in the OpenTracing https://opentracing.io/ format. Workers communicate using gRPC, which is using HTTP2 for transport, i.e., propagated trace context data is marshalled to custom HTTP headers, check https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md for some details.
 
 ## Overview
-t-race follows a master-slave architecture, with the slaves (called *workers*) each emulating a service of an emulated software architecture. Workers without a predecessor are `root`, i.e., they use the configured throughput rate to generate requests. All sucessive workers then are called in an RPC-style fashion. t-race relies on [gRPC](https://grpc.io) streaming to collect of results at the master. See the figure below for the overall architecture of t-race.
+t-race follows a two-tier architecture, with *workers* each emulating a service of an emulated software architecture. Workers are controlled by a master, which connects to workers and assigns a service from the architecture to each worker. Workers produce requests, i.e., they use the configured throughput rate and an individual ratio to generate requests, and/or react to being invoked by other workers. All successive workers, which are not independently producing requests, are called in an RPC-style fashion. t-race relies on [gRPC](https://grpc.io) streaming to collect information about progress at the master. See the figure below for the overall architecture of t-race.
 
 ![t-race architecture overview](doc/architecture.png "Architecture of t-race, showing a simplified deployment with a single master and three workers")
 

@@ -4,14 +4,17 @@ import (
 	"encoding/json"
 	"os"
 
-	"github.com/dominik-/t-race/benchmark"
+	"github.com/dominik-/t-race/executionmodel"
 )
 
 //Provider is a simple abstraction to integrate provisioning for deployment of t-race components.
 type Provider interface {
 	CreateEnvironments([]string)
-	AllocateSinks([]*benchmark.Sink)
-	AllocateServices([]*benchmark.Service)
+	AllocateSinks([]*executionmodel.Sink)
+	AllocateServices([]*executionmodel.Service)
+	GetIdWorkerMap() map[string]string
+	GetIdServiceMap() map[string]string
+	GetUnitServiceMap() map[string]string
 }
 
 //StaticProvider is the configuration-file-based basic provisioning, using "localhost" for deployment.
@@ -63,7 +66,7 @@ func (p *StaticProvider) CreateEnvironments(envRefs []string) {
 }
 
 //AllocateServices maps services/worker addresses from the StaticProvider to the benchmark config.
-func (p *StaticProvider) AllocateServices(svcs []*benchmark.Service) {
+func (p *StaticProvider) AllocateServices(svcs []*executionmodel.Service) {
 	p.SvcMap = make(map[string]string, len(svcs))
 	p.WorkerMap = make(map[string]string, len(svcs))
 	for i, s := range svcs {
@@ -74,9 +77,16 @@ func (p *StaticProvider) AllocateServices(svcs []*benchmark.Service) {
 }
 
 //AllocateSinks maps SUT addresses from the StaticProvider to the benchmark config.
-func (p *StaticProvider) AllocateSinks(sinks []*benchmark.Sink) {
+func (p *StaticProvider) AllocateSinks(sinks []*executionmodel.Sink) {
 	p.SinkMap = make(map[string]string, len(sinks))
 	for i, s := range sinks {
 		p.SinkMap[s.Identifier] = p.deployment.Sinks[i]
 	}
+}
+
+func (p *StaticProvider) GetIdWorkerMap() map[string]string {
+	return p.WorkerMap
+}
+func (p *StaticProvider) GetIdServiceMap() map[string]string {
+	return p.SvcMap
 }

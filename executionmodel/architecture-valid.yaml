@@ -1,0 +1,80 @@
+name: test-architecture
+services:
+  - id: svc01
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: call01A
+        work: work01
+        ratio: 1.0
+        successors: 
+          - svc: svc02
+            unit: call02A
+            sync: true
+          - svc: svc02
+            unit: call02B
+            sync: false
+          - svc: svc01
+            unit: call01B
+            sync: false
+        context:
+          tags:
+            - keyLength: 20
+              valueLength: 40
+            - keyStatic: method
+              valueLength: 60
+          baggage:
+            - keyLength: 10
+              valueLength: 30
+      - id: call01B
+        work: work02
+        context:
+          tags:
+            - keyLength: 20
+              valueLength: 40
+            - keyStatic: method
+              valueLength: 60
+          baggage:
+            - keyLength: 10
+              valueLength: 30
+  - id: svc02
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: call02A
+        rel: child
+        inputs:
+          - svc: svc01
+            unit: call01A
+        work: work02
+        context:
+          tags:
+          - keyStatic: idString 
+            valueStatic: authN
+      - id: call02B
+        rel: child
+        inputs:
+          - svc: svc01
+            unit: call01A
+        work: work01
+        context:
+          tags:
+          - keyStatic: method 
+            valueLength: 20
+
+sinks:
+  - id: agent1
+    type: provided
+    hostport: localhost:6831
+    envRef: env01
+
+workTemplates:
+  - id: work01
+    type: constant
+    params:
+      value: 2000
+  - id: work02
+    type: gaussian
+    params:
+      mean: 5000
+      stddev: 2000
