@@ -1,6 +1,10 @@
 package worker
 
-import "github.com/dominik-/t-race/api"
+import (
+	"sync"
+
+	"github.com/dominik-/t-race/api"
+)
 
 //ResultReporter is a wrapper around the collection and sending of results to the benchmark coordinator.
 type ResultReporter interface {
@@ -12,6 +16,7 @@ type ResultReporter interface {
 
 type BufferingReporter struct {
 	resultBuffer []*api.Result
+	lock         sync.Mutex
 	size         int
 	target       api.BenchmarkWorker_StartWorkerServer
 }
@@ -24,10 +29,13 @@ func NewBufferingReporter(target api.BenchmarkWorker_StartWorkerServer, bufferSi
 		resultBuffer: make([]*api.Result, 0),
 		size:         bufferSize,
 		target:       target,
+		lock:         sync.Mutex{},
 	}
 }
 
 func (r *BufferingReporter) Collect(result *api.Result) {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	r.resultBuffer = append(r.resultBuffer, result)
 	if len(r.resultBuffer) > r.size {
 		r.Report()
@@ -35,6 +43,8 @@ func (r *BufferingReporter) Collect(result *api.Result) {
 }
 
 func (r *BufferingReporter) Report() {
+	r.lock.Lock()
+	defer r.lock.Unlock()
 	r.target.Send(&api.ResultPackage{
 		Results: r.resultBuffer,
 	})

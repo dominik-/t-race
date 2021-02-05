@@ -5,7 +5,9 @@ import (
 	"encoding/binary"
 	"io"
 	"log"
+	"math"
 	"reflect"
+	"sync"
 	"time"
 
 	"github.com/dominik-/t-race/api"
@@ -27,35 +29,19 @@ type OpenTracingSpanGenerator struct {
 	Tracer           opentracing.Tracer
 	Closer           io.Closer
 	Units            map[string]Unit
-	Tags             map[string]string
-	Baggage          map[string]string
-	WorkFinalDist    DistributionSampler
 	ServiceName      string
-}
-
-type GeneratedUnit struct {
-	Unit        *api.Unit
-	WorkSampler DistributionSampler
-	UnitClient  api.BenchmarkWorkerClient
-}
-
-func CreateGeneratedUnit(u *api.Unit, client api.BenchmarkWorkerClient) (*GeneratedUnit, error) {
-	dist, err := LookupDistribution(u.WorkBefore)
-	if err != nil {
-		//surface error
-		return nil, err
-	}
-	return &GeneratedUnit{
-		Unit:        u,
-		WorkSampler: dist,
-		UnitClient:  client,
-	}, nil
+	MaxWeight        int64
+	CombinedWeights  int64
 }
 
 type SpanGenerator interface {
-	DoUnitCalls(ResultReporter) bool
+	DoUnitCalls(ResultReporter, int64) bool
 	GetTracer() opentracing.Tracer
-	WriteSpansUntilExitSignal(<-chan bool, time.Duration, ResultReporter) chan bool
+	WriteSpansUntilExitSignal(<-chan bool, int64, ResultReporter) chan bool
+}
+
+type UnitContextGenerator interface {
+	GenerateUntilExitSignal(<-chan bool, ResultReporter, *sync.WaitGroup)
 }
 
 func (sg *OpenTracingSpanGenerator) GetTracer() opentracing.Tracer {
@@ -76,6 +62,33 @@ func InitTracer(sinkAddress, serviceName, samplingstrategy string, samplingParam
 		},
 	}
 	return tracerConfig.NewTracer()
+}
+
+type OpenTracingUnitSpanGenerator struct {
+	TraceCounter        int64
+	SpanDurationHist    prometheus.Histogram
+	ReportHistogram     bool
+	Tracer              opentracing.Tracer
+	Unit                Unit
+	EffectiveThroughput float64
+	ServiceName         string
+	Reporter            ResultReporter
+}
+
+func NewOpenTracingUnitSpanGenerator(unit Unit, serviceName string, tracer opentracing.Tracer, throughput int64, histogram ...prometheus.Histogram) UnitContextGenerator {
+	generator := &OpenTracingUnitSpanGenerator{
+		TraceCounter:        0,
+		Tracer:              tracer,
+		Unit:                unit,
+		EffectiveThroughput: float64(throughput) * unit.GetLoadPercentage(),
+		ServiceName:         serviceName,
+		ReportHistogram:     false,
+	}
+	if len(histogram) > 0 {
+		generator.SpanDurationHist = histogram[0]
+		generator.ReportHistogram = true
+	}
+	return generator
 }
 
 func NewOpenTracingSpanGenerator(tracer opentracing.Tracer, worker *Worker) SpanGenerator {
@@ -169,7 +182,7 @@ func (sg *OpenTracingSpanGenerator) finishAndReportTimedOTSpan(startTime time.Ti
 	return nil
 }
 
-func (sg *OpenTracingSpanGenerator) DoUnitCalls(reporter ResultReporter) bool {
+func (sg *OpenTracingSpanGenerator) DoUnitCalls(reporter ResultReporter, weight int64) bool {
 	//This function emulates load applied to "root" execution units, thus traces start here. We create a new, empty context.
 	ctx := context.Background()
 	//TODO: should we create a "root" trace here already?
@@ -181,14 +194,12 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(reporter ResultReporter) bool {
 	//spanStart := time.Now()
 	//we add this service's tags and baggage before doing further calls
 	//Generate spans for subsequent calls.
-	childrenCounter := 0
 	for _, unit := range sg.Units {
 		//TODO: respect the weighting here and implement counters accordingly!!
 		//TODO: currently, precision is limited to 5e-10, but this is unlikely an issue
-		if unit.GetLoadPercentage() > 0.00001 {
+		if unit.GetWeight() > weight {
 			go unit.Invoke(ctx, sg.GetTracer())
 		}
-		childrenCounter++
 	}
 	//Finish parent span and do reporting etc.
 	//TODO return a result!?
@@ -198,12 +209,16 @@ func (sg *OpenTracingSpanGenerator) DoUnitCalls(reporter ResultReporter) bool {
 //WriteSpansUntilExitSignal takes a SpanGenerator, an exitSignalChannel and reporters.
 //It loops writing spans to the IntervalTraceWriter until the exitSignalChannel receives a value.
 //All reporters are invoked periodically every second. The returned channel can be used to listen for the termination of the write-loop.
-func (sg *OpenTracingSpanGenerator) WriteSpansUntilExitSignal(exitSignalChannel <-chan bool, interval time.Duration,
+func (sg *OpenTracingSpanGenerator) WriteSpansUntilExitSignal(exitSignalChannel <-chan bool, throughput int64,
 	reporter ResultReporter) chan bool {
 	finishedIndicator := make(chan bool, 1)
+	normalizeWeightsForRR(sg)
+	interval := calculateThroughputScaledByWeights(throughput, sg.CombinedWeights)
 	go func() {
 		ticker := time.NewTicker(interval)
 		//TODO make report interval configurable; together with channel buffer size, this limits the maximum throughput!
+		limit := sg.MaxWeight
+		currentWeight := int64(0)
 	GenerateLoop:
 		for {
 			select {
@@ -211,8 +226,9 @@ func (sg *OpenTracingSpanGenerator) WriteSpansUntilExitSignal(exitSignalChannel 
 				//log.Println("Received shutdown signal at write Span loop.")
 				break GenerateLoop
 			case <-ticker.C:
+				currentWeight = (currentWeight + 1) % limit
 				//write span (async) to the writer, generate new parent context
-				go sg.DoUnitCalls(reporter)
+				go sg.DoUnitCalls(reporter, currentWeight)
 				break
 			}
 		}
@@ -223,4 +239,101 @@ func (sg *OpenTracingSpanGenerator) WriteSpansUntilExitSignal(exitSignalChannel 
 	}()
 
 	return finishedIndicator
+}
+
+func (gen *OpenTracingUnitSpanGenerator) GenerateUntilExitSignal(stopSignalRecv <-chan bool, reporter ResultReporter, waitGroup *sync.WaitGroup) {
+	interval := calculateIntervalForThroughput(gen.EffectiveThroughput)
+	go func() {
+		ticker := time.NewTicker(interval)
+		//TODO make report interval configurable; together with channel buffer size, this limits the maximum throughput!
+	GenerateLoop:
+		for {
+			select {
+			case <-stopSignalRecv:
+				//log.Println("Received shutdown signal at write Span loop.")
+				break GenerateLoop
+			case <-ticker.C:
+				//write span (async) to the writer, generate new parent context
+				go gen.Unit.Invoke(context.Background(), gen.Tracer)
+				break
+			}
+		}
+		//signal to parent that this worker is successfully finished
+		waitGroup.Done()
+	}()
+}
+
+func normalizeWeightsForRR(sg *OpenTracingSpanGenerator) {
+	minWeight := 1.0
+	maxWeight := 0.0
+	sg.CombinedWeights = 0
+	//assign min and max weights
+	for _, unit := range sg.Units {
+		if unit.GetLoadPercentage() < minWeight {
+			if unit.GetLoadPercentage() < 0.00001 && unit.GetLoadPercentage() > 0.000000001 {
+				log.Println("Load percentage below minimum value, set to minimum of 0.00001.")
+				minWeight = 0.00001
+			} else if unit.GetLoadPercentage() < 0.000000001 {
+				//this is the load == 0.0 case for the float value.
+			} else {
+				minWeight = unit.GetLoadPercentage()
+			}
+		}
+		if unit.GetLoadPercentage() > maxWeight {
+			if unit.GetLoadPercentage() > 1.0 {
+				log.Println("Load percentage is above max value, set to max of 1.0.")
+				maxWeight = 1.0
+			} else {
+				maxWeight = unit.GetLoadPercentage()
+			}
+		}
+
+	}
+	scale := 1.0 / minWeight
+
+	for _, unit := range sg.Units {
+		log.Printf("Unit load percentage: %f", unit.GetLoadPercentage())
+		unit.SetWeight(int64(math.Round(unit.GetLoadPercentage() * scale)))
+		log.Printf("Unit weight: %d", unit.GetWeight())
+		if unit.GetLoadPercentage() < 0.000000001 {
+			unit.SetWeight(0)
+		}
+		sg.CombinedWeights += unit.GetWeight()
+		log.Printf("Unit weight: %d", unit.GetWeight())
+	}
+	sg.MaxWeight = int64(math.Round(scale * maxWeight))
+}
+
+func calculateIntervalByThroughput(targetThroughput int64) time.Duration {
+	if targetThroughput > 1000000 {
+		targetThroughput = 0
+	}
+	if targetThroughput < 0 {
+		targetThroughput = 0
+	}
+	if targetThroughput == 0 {
+		log.Println("Target throughput of 0 or above maximum (1mio). Setting throughput to 1mio reqs/s.")
+		return 1 * time.Microsecond
+	}
+	return time.Duration(1000000/targetThroughput) * time.Microsecond
+}
+
+func calculateIntervalForThroughput(targetThroughput float64) time.Duration {
+	if targetThroughput > 1000000 {
+		targetThroughput = 0
+	}
+	if targetThroughput < 0 {
+		targetThroughput = 0
+	}
+	if targetThroughput == 0 {
+		log.Println("Target throughput of 0 or above maximum (1mio). Setting throughput to 1mio reqs/s.")
+		return 1 * time.Microsecond
+	}
+	return time.Duration(1000000/targetThroughput) * time.Microsecond
+}
+
+func calculateThroughputScaledByWeights(throughput, combinedWeights int64) time.Duration {
+	log.Printf("Combined weights: %d", combinedWeights)
+	scale := float64(throughput) / float64(combinedWeights)
+	return calculateIntervalByThroughput(throughput) * time.Duration(scale)
 }

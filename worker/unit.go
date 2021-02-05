@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/dominik-/t-race/api"
+	"github.com/golang/protobuf/ptypes"
 	"github.com/opentracing/opentracing-go"
 	otlog "github.com/opentracing/opentracing-go/log"
 	"google.golang.org/grpc"
@@ -21,6 +22,8 @@ type Unit interface {
 	Next(context.Context, opentracing.Span, opentracing.Tracer)
 	CloseContext(opentracing.Span)
 	GetLoadPercentage() float64
+	SetWeight(int64)
+	GetWeight() int64
 }
 
 type UnitExecutor struct {
@@ -33,6 +36,7 @@ type UnitExecutor struct {
 	Baggage          map[string]string
 	Logs             map[string]string
 	Worker           *Worker
+	Weight           int64
 }
 
 func CreateUnitExecutorFromConfig(unitConfig *api.Unit, workerConfig *Worker) (*UnitExecutor, error) {
@@ -75,11 +79,29 @@ func (executor *UnitExecutor) Invoke(ctx context.Context, tracer opentracing.Tra
 	if err != nil {
 		log.Fatalf("Couldn't extract metadata, please check format. Data was: %v", ctx)
 	}
+	spanStart := time.Now()
 	span, ctxNew := executor.StartContext(tracer, spanCtx, ctx)
 	executor.AddContextMetadata(span)
 	executor.EmulateWork()
 	executor.Next(ctxNew, span, tracer)
+	sampled := getSampledFlag(span.Context())
+	traceID := getTraceIdAsBytes(span.Context())
+	spanID := getSpanID(span.Context())
 	executor.CloseContext(span)
+	finishTimeDelta := time.Since(spanStart)
+	executor.Worker.SpanDurationHist.Observe(float64(finishTimeDelta.Nanoseconds() / 1000.0))
+	started, err := ptypes.TimestampProto(spanStart)
+	finished, err := ptypes.TimestampProto(spanStart.Add(finishTimeDelta))
+	if err != nil {
+		log.Fatalf("Couldn't convert timestamps to proto format.")
+	}
+	go executor.Worker.Reporter.Collect(&api.Result{
+		TraceId:    traceID,
+		SpanId:     spanID,
+		StartTime:  started,
+		FinishTime: finished,
+		Sampled:    sampled,
+	})
 }
 
 func (executor *UnitExecutor) ExtractIncomingMetadata(ctx context.Context, tracer opentracing.Tracer) (opentracing.SpanContext, error) {
@@ -205,4 +227,12 @@ func generateStringMap(templates []*api.KeyValueTemplate) map[string]string {
 
 func (executor *UnitExecutor) GetLoadPercentage() float64 {
 	return executor.data.ThroughputRatio
+}
+
+func (executor *UnitExecutor) SetWeight(w int64) {
+	executor.Weight = w
+}
+
+func (executor *UnitExecutor) GetWeight() int64 {
+	return executor.Weight
 }

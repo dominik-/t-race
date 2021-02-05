@@ -7,6 +7,7 @@ import (
 	"net"
 	"os"
 	"os/signal"
+	"sync"
 	"syscall"
 	"time"
 
@@ -18,7 +19,7 @@ import (
 )
 
 type Worker struct {
-	Generator        SpanGenerator
+	Tracer           opentracing.Tracer
 	Reporter         ResultReporter
 	SpanDurationHist prometheus.Histogram
 	Config           *api.WorkerConfiguration
@@ -31,18 +32,11 @@ type Worker struct {
 	api.UnimplementedBenchmarkWorkerServer
 }
 
-func (w *Worker) GetTracer() opentracing.Tracer {
-	return w.Generator.GetTracer()
-}
-
 func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.BenchmarkWorker_StartWorkerServer) error {
 	//need to do the run here, i.e. start Writer with generator and return results
 	//hook to SIGINT/SIGTERM
 	sigTermRecv := make(chan os.Signal, 1)
 	signal.Notify(sigTermRecv, syscall.SIGINT, syscall.SIGTERM)
-	//TODO differentiate between request generation and simply starting a listener/server for incoming requests.
-	stopChan := make(chan bool, 1)
-	defer close(stopChan)
 
 	//Create sink (i.e. tracing backend) connection
 	tracer, closer, err := InitTracer(config.SinkHostPort, config.ServiceName, w.SamplingStrategy, w.SamplingParams[0])
@@ -50,6 +44,7 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	if err != nil {
 		log.Fatalf("Couldn't create tracer with given config. Error was: %v", err)
 	}
+	w.Tracer = tracer
 	defer closer.Close()
 	//Setup for prometheus metrics
 	if !w.SetupDone {
@@ -66,7 +61,6 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	}
 	w.Reporter = NewBufferingReporter(stream, 500)
 	w.Config = config
-	doneChannel := make(chan bool, 1)
 	listener, err := net.Listen("tcp", fmt.Sprintf(":%d", w.ServicePort))
 	if err != nil {
 		log.Fatalf("failed to listen: %v", err)
@@ -81,29 +75,48 @@ func (w *Worker) StartWorker(config *api.WorkerConfiguration, stream api.Benchma
 	go server.Serve(listener)
 	log.Printf("Started worker. Config: %v\n", config)
 	w.UnitExecutorMap = make(map[string]Unit)
+	var generatorWG sync.WaitGroup
+	generators := make([]UnitContextGenerator, 0)
+	stopSignals := make([]chan bool, 0)
+	//stopChan := make(chan bool, 1)
+
 	for _, unit := range config.Units {
-		w.UnitExecutorMap[unit.Identifier], err = CreateUnitExecutorFromConfig(unit, w)
+		unitExec, err := CreateUnitExecutorFromConfig(unit, w)
+		if err != nil {
+			log.Fatalf("Couldn't create executor for unit %s!", unit.Identifier)
+		}
+		if unit.ThroughputRatio > 0.000001 {
+			generatorWG.Add(1)
+			stopSignals = append(stopSignals, make(chan bool, 1))
+			generators = append(generators, NewOpenTracingUnitSpanGenerator(unitExec, w.Config.ServiceName, tracer, w.Config.TargetThroughput, w.SpanDurationHist))
+		}
+		w.UnitExecutorMap[unit.Identifier] = unitExec
 	}
-	w.Generator = NewOpenTracingSpanGenerator(tracer, w)
+	for i, generator := range generators {
+		//TODO: do we need individual stop channels for each generator? to signal them to halt load generation?
+		go generator.GenerateUntilExitSignal(stopSignals[i], w.Reporter, &generatorWG)
+	}
+	//w.Generator = NewOpenTracingSpanGenerator(tracer, w)
 	//We create a new done channel here if this is a root service
 	//TODO: Ideally, the "default" case for the done channel link would be that the worker didn't receive "Call"-Requests for a few seconds,
 	//indicating that the root-workers no longer send requests;
-	doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, calculateIntervalByThroughput(config.TargetThroughput), w.Reporter)
-	// go func() {
-	// 	//TODO make report interval configurable; together with channel buffer size, this limits the maximum throughput!
-	// 	reporterCollectionTicker := time.NewTicker(5 * time.Second)
-	// ReporterLoop:
-	// 	for {
-	// 		select {
-	// 		case <-doneChannel:
-	// 			//log.Println("Received shutdown signal at write Span loop.")
-	// 			break ReporterLoop
-	// 		case <-reporterCollectionTicker.C:
-	// 			go w.Reporter.Report()
-	// 		}
-	// 	}
-	// }()
-
+	//doneChannel = w.Generator.WriteSpansUntilExitSignal(stopChan, config.TargetThroughput, w.Reporter)
+	doneChannelLoadGenerators := make(chan bool, 1)
+	doneChannelReporters := make(chan bool, 1)
+	go func() {
+		//TODO make report interval configurable; together with channel buffer size, this limits the maximum throughput!
+		reporterCollectionTicker := time.NewTicker(5 * time.Second)
+	ReporterLoop:
+		for {
+			select {
+			case <-doneChannelReporters:
+				//log.Println("Received shutdown signal at write Span loop.")
+				break ReporterLoop
+			case <-reporterCollectionTicker.C:
+				go w.Reporter.Report()
+			}
+		}
+	}()
 	//create a timer with runtime plus tolerance
 	//TODO: make tolerance time (time after which worker is shut down forcefully after runtime) a parameter of the benchmark
 	tolerance := 8 * time.Second
@@ -112,11 +125,21 @@ WorkerLoop:
 	for {
 		select {
 		case <-timer.C:
-			stopChan <- true
+			//Stop all running generators
+			for _, ch := range stopSignals {
+				ch <- true
+			}
 			limit := time.NewTimer(tolerance)
+			go func(doneChannels ...chan bool) {
+				generatorWG.Wait()
+				for _, ch := range doneChannels {
+					ch <- true
+				}
+			}(doneChannelLoadGenerators, doneChannelReporters)
+
 			for {
 				select {
-				case <-doneChannel:
+				case <-doneChannelLoadGenerators:
 					log.Println("Benchmark ended regularly after runtime.")
 					break WorkerLoop
 				case <-limit.C:
@@ -125,11 +148,20 @@ WorkerLoop:
 				}
 			}
 		case <-sigTermRecv:
-			stopChan <- true
+			//Stop all running generators
+			for _, ch := range stopSignals {
+				ch <- true
+			}
 			limit := time.NewTimer(5 * time.Second)
+			go func(doneChannels ...chan bool) {
+				generatorWG.Wait()
+				for _, ch := range doneChannels {
+					ch <- true
+				}
+			}(doneChannelLoadGenerators, doneChannelReporters)
 			for {
 				select {
-				case <-doneChannel:
+				case <-doneChannelLoadGenerators:
 					log.Println("Benchmark ended by manual interrupt from user.")
 					break WorkerLoop
 				case <-limit.C:
@@ -146,21 +178,7 @@ WorkerLoop:
 	return nil
 }
 
-func calculateIntervalByThroughput(targetThroughput int64) time.Duration {
-	if targetThroughput > 1000000 {
-		targetThroughput = 0
-	}
-	if targetThroughput < 0 {
-		targetThroughput = 0
-	}
-	if targetThroughput == 0 {
-		log.Println("Target throughput of 0 or above maximum (1mio). Setting throughput to 1mio reqs/s.")
-		return 1 * time.Microsecond
-	}
-	return time.Duration(1000000/targetThroughput) * time.Microsecond
-}
-
 func (w *Worker) Call(ctx context.Context, id *api.DispatchId) (*api.Empty, error) {
-	w.UnitExecutorMap[id.UnitReference].Invoke(ctx, w.GetTracer())
+	w.UnitExecutorMap[id.UnitReference].Invoke(ctx, w.Tracer)
 	return &api.Empty{}, nil
 }
