@@ -60,15 +60,30 @@ func CreateUnitExecutorFromConfig(unitConfig *api.Unit, workerConfig *Worker) (*
 			clientConnections[successor.ServiceId] = conn
 		}
 	}
+	var tags map[string]string
+	var baggage map[string]string
+	var logs map[string]string
+	if unitConfig.Context != nil {
+		if unitConfig.Context.Tags != nil {
+			tags = generateStringMap(unitConfig.Context.Tags)
+		}
+		if unitConfig.Context.Baggage != nil {
+			baggage = generateStringMap(unitConfig.Context.Baggage)
+		}
+		if unitConfig.Context.Logs != nil {
+			logs = generateStringMap(unitConfig.Context.Logs)
+		}
+	}
+
 	return &UnitExecutor{
 		data:             unitConfig,
 		syncCount:        len(unitConfig.Inputs),
 		syncSet:          make(map[string]int),
 		WorkSampler:      dist,
 		SuccessorClients: clientConnections,
-		Tags:             generateStringMap(unitConfig.Context.Tags),
-		Baggage:          generateStringMap(unitConfig.Context.Baggage),
-		Logs:             generateStringMap(unitConfig.Context.Logs),
+		Tags:             tags,
+		Baggage:          baggage,
+		Logs:             logs,
 		Worker:           workerConfig,
 	}, nil
 }

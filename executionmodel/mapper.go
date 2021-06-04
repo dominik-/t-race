@@ -61,10 +61,13 @@ func MapArchitectureToWorkers(d Architecture, b BenchmarkConfig, sinkAddresses, 
 }
 
 func toContext(c *Context) *api.ContextTemplate {
-	return &api.ContextTemplate{
-		Baggage: toKVTemplate(c.Baggage),
-		Tags:    toKVTemplate(c.Tags),
+	if c != nil {
+		return &api.ContextTemplate{
+			Baggage: toKVTemplate(c.Baggage),
+			Tags:    toKVTemplate(c.Tags),
+		}
 	}
+	return nil
 }
 
 func toKVTemplate(template []*KeyValueTemplate) []*api.KeyValueTemplate {

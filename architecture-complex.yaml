@@ -1,0 +1,113 @@
+name: complex-example
+services:
+  - id: frontend
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: getProductInformation
+        work: work01
+        ratio: 1.0
+        successors: 
+          - svc: ProductCatalogService
+            unit: getProduct
+            sync: true
+          - svc: RecommendationService
+            unit: getRecommendations
+            sync: true
+          - svc: CartService
+            unit: getCart
+            sync: true
+          - svc: CurrencyService
+            unit: convertCurrency
+            sync: true
+        context:
+          tags:
+            - keyLength: 20
+              valueLength: 40
+            - keyStatic: method
+              valueStatic: getProductInformation
+          baggage:
+            - keyStatic: userId
+              valueLength: 30
+      - id: addToCartHandler
+        work: work02
+        ratio: 0.2
+        successors: 
+          - svc: ProductCatalogService
+            unit: getProduct
+            sync: true
+          - svc: CartService
+            unit: addToCart
+            sync: true
+        context:
+          tags:
+            - keyLength: 20
+              valueLength: 40
+            - keyStatic: method
+              valueLength: 60
+          baggage:
+            - keyLength: 10
+              valueLength: 30
+  - id: ProductCatalogService
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: getProduct
+        rel: child
+        work: work02
+        context:
+          tags:
+            - keyStatic: someVal
+              valueLength: 20
+  - id: RecommendationService
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: getRecommendations
+        rel: child
+        work: work02
+      - id: getProduct
+        rel: child
+        work: work02
+        context:
+          tags:
+            - keyStatic: someIndicator
+              valueLength: 1
+  - id: CartService
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: getCart
+        rel: child
+        work: work02
+      - id: addToCart
+        rel: child
+        work: work03
+  - id: CurrencyService
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: convertCurrency
+        rel: child
+        work: work02
+
+sinks:
+  - id: agent1
+    type: provided
+    hostport: localhost:6831
+    envRef: env01
+
+workTemplates:
+  - id: work01
+    type: constant
+    params:
+      value: 2000
+  - id: work02
+    type: gaussian
+    params:
+      mean: 5000
+      stddev: 5000
+  - id: work03
+    type: exponential
+    params:
+      mean: 10000
