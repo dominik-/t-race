@@ -1,0 +1,50 @@
+services:
+  - id: ServiceA
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: unitA1
+        work: work01
+        ratio: 1.0
+        successors: 
+          - svc: ServiceB
+            unit: unitB1
+            sync: true
+          - svc: ServiceC
+            unit: unitC1
+            sync: true
+        context:
+          tags:
+            - keyLength: 10
+              valueLength: 40
+          baggage:
+            - keyStatic: clientId
+              valueLength: 20
+  - id: ServiceB
+    envRef: env01
+    sinkRef: agent1
+    units:
+      - id: unitB1
+        rel: child
+        work: work02
+        context:
+          tags:
+          - keyLength: 10
+            valueLength: 30
+
+sinks:
+  - id: agent1
+    type: provided
+    hostport: localhost:6831
+    envRef: env01
+
+workTemplates:
+  - id: work01
+    type: constant
+    params:
+      value: 2000
+  - id: work02
+    type: gaussian
+    params:
+      mean: 5000
+      stddev: 2000

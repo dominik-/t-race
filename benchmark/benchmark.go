@@ -49,7 +49,7 @@ func resultsToRecords(results *api.ResultPackage, worker *api.WorkerConfiguratio
 			fmt.Printf("Couldn't convert timestamp %v to time, error was: %s", resultSlice[i].StartTime, err)
 		}
 		records[i] = &Record{
-			Service:     worker.GetOperationName(),
+			Service:     worker.ServiceName,
 			TraceNumber: resultSlice[i].TraceNum,
 			SpanNumber:  resultSlice[i].SpanNum,
 			TraceID:     traceID.String(),

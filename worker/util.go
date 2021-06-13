@@ -6,7 +6,7 @@ import (
 	"google.golang.org/grpc/metadata"
 )
 
-//File copied from: https://github.com/grpc-ecosystem/grpc-opentracing/blob/master/go/otgrpc/shared.go
+//Content copied from: https://github.com/grpc-ecosystem/grpc-opentracing/blob/master/go/otgrpc/shared.go
 //Contains grpc writer implementation for metadata
 
 type metadataReaderWriter struct {
@@ -20,7 +20,8 @@ func (w metadataReaderWriter) Set(key, val string) {
 	// blindly lowercase the key (which is guaranteed to work in the
 	// Inject/Extract sense per the OpenTracing spec).
 	key = strings.ToLower(key)
-	w.MD[key] = append(w.MD[key], val)
+	//w.MD[key] = append(w.MD[key], val)
+	w.MD.Set(key, val)
 }
 
 func (w metadataReaderWriter) ForeachKey(handler func(key, val string) error) error {

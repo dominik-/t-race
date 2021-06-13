@@ -1,16 +1,18 @@
 # t-race
 
-Tool to benchmark tracing systems by emulating (possibly complex) multi-service deployments. Implemented as a single executable in Golang. Distributed tracing systems are consequently t-race's SUT (System under Test).
+Tool to model the observable execution of "microservice-like" architectures. Implemented as a single executable in Golang. Observability systems are t-race's SUT (System under Test).
 
-Inputs for the benchmark are a model of a deployed application (_Service Model_, e.g., `test-2.yaml`), a set of _Workers_ and a set of _Sinks_ (e.g., `deployment_localhost_2.json`). Sinks are the endpoints of the distributed tracing backend.
+_Disclaimer: this is a research project - there might be issues and lack of documentation._
+
+t-race's goal is to emulate a deployed application's observable behavior (described by an _architecture_, e.g., `test-2.yaml`), a set of _Workers_ and a set of _Sinks_ (e.g., `deployment_localhost_2.json`). Sinks are the endpoints of an observability backend system. Currently, only distributed tracing systems are supported as the backend.
 
 t-race is under development and considered a prototype. Use at your own discretion.
 
 ## Supported SUTs
-As of now, t-Race implements an adapter for Jaeger https://www.jaegertracing.io/docs/1.11/. Traces are generated in the OpenTracing https://opentracing.io/ format. Workers communicate using gRPC, which is using HTTP2 for transport, i.e., propagated trace context data is marshalled to HTTP custom headers, check https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md for some details.
+As of now, t-race implements an adapter for Jaeger https://www.jaegertracing.io/docs/1.11/. Traces are generated in the OpenTracing https://opentracing.io/ format. Workers communicate using gRPC, which is using HTTP2 for transport, i.e., propagated trace context data is marshalled to custom HTTP headers, check https://github.com/grpc/grpc/blob/master/doc/PROTOCOL-HTTP2.md for some details.
 
 ## Overview
-t-race follows a master-slave architecture, with the slaves (called *workers*) each emulating a service of an emulated software architecture. Workers without a predecessor are `root`, i.e., they use the configured throughput rate to generate requests. All sucessive workers then are called in an RPC-style fashion. t-race relies on [gRPC](https://grpc.io) streaming to collect of results at the master. See the figure below for the overall architecture of t-race.
+t-race follows a two-tier architecture with a master, acting as a *coordinator*, and *workers* each emulating a service of an emulated software architecture. Workers are controlled by the coordinator, which connects to workers and assigns a service from the architecture to each. Workers produce requests independently, i.e., they use a globally configured throughput rate and a throughput ratio to generate requests, and/or react to being invoked by other workers. All successive workers, which are not independently producing requests, are called in an RPC-style fashion. t-race relies on [gRPC](https://grpc.io) streaming to collect information about workload generation progress to the master. See the figure below for the overall architecture of t-race.
 
 ![t-race architecture overview](doc/architecture.png "Architecture of t-race, showing a simplified deployment with a single master and three workers")
 
@@ -25,11 +27,11 @@ Simply run `go build .` to download dependencies and create binaries for your lo
 
 ## Usage
 
-Running a benchmark with t-race consists of five steps, listed below. Please note that t-race does not fully automate all of these steps (and doesn't aim to do so either). The t-race master collects some benchmark results and saves them to *.csv (one for each worker)., including trace and span IDs, span start and finish, as well as a flag, if the trace was sampled (i.e., sent to the SUT).
+Generating workload with t-race consists of five steps, listed below. Please note that t-race does not fully automate all of these steps (and doesn't aim to do so either). The t-race coordinator collects some results about a run and saves them to *.csv (one for each worker)., including trace and span IDs, span start and finish, as well as a flag, if the trace was sampled (i.e., sent to the SUT).
 
 1. SUT Setup
-2. Benchmark Setup
-3. Benchmark Execution
+2. Workload Setup
+3. Workload Execution
 4. Result Collection
 5. Result Analysis
 
@@ -37,66 +39,73 @@ Running a benchmark with t-race consists of five steps, listed below. Please not
 As the only currently supported SUT is Jaeger, this means a Jaeger cluster needs to be stood up. Among others, the following decisions need to be made:
 * Deployment of endpoints: Jaeger (and other tracing backends) allow the deployment of intermediary endpoints ('agents') to buffer transport to the central backend. These endpoints are referred to as `sinks` in the config of t-race. See the file `deployment_localhost_2.json` for an example with a single sink.
 * Sampling and other configuration: Because sampling is configured in the client libraries of tracing systems (including Jaeger), the `t-race worker` command exposes equivalent parameters. Other configurations of the SUT, e.g. which database and database schema should be used, batching of traces during transport, etc. is out of scope for t-race.
-* If you want to try out locally first, you can use the provided docker-compose file `docker-compose-jaeger-backend.yml` to setup a local deployment of Jaeger with Cassandra for storage and including Prometheus to collect monitoring data from benchmark workers.
+* If you want to try out locally first, you can use the provided docker-compose file `docker-compose-jaeger-backend.yml` to setup a local deployment of Jaeger with Cassandra for storage and including Prometheus to collect monitoring data from workers.
 
-### Benchmark Setup
-1. Two types of configurations are needed to execute a benchmark: a deployment configuration (JSON) and a service descriptor file (YAML).
-  * Deployment Configuration: check `deployment_localhost_2.json` for an example. This file is needed configure SUT endpoints (`sinks`) and `workers`, which are configured with service and benchmark host:port strings.
+### Workload Setup
+1. Two types of configurations are needed to execute a workload: a deployment configuration (JSON) and a service descriptor file (YAML).
+  * Deployment Configuration: check `deployment_localhost_2.json` for an example. This file is needed configure SUT endpoints (`sinks`) and `workers`, which are configured with service and workload host:port strings.
   * Service Descriptor: this file describes the architecture of the service deployment to be emulated by deployed workers. Check out the examples `test-2.yaml` and `test-4-multiroot.yaml` for a quick introduction. More information (also about thoughts that went into the concept, design and parameterization of the service descriptor) in its own section. <!--TODO: add ref!-->
 2. Start t-race workers on each physical environment where you want to have a service deployed. You can create individual configurations for each worker as a JSON or YAML files, or use command line parameters. If you don't supply any parameters, default values are chose. Use `t-race worker -h` to see available parameteres. Create a deployment file or update `deployment_localhost_2.json` accordingly with entries for each worker under 'workers'.
-3. Choose a suitable environment to run the t-race master. Since it does only consume small amounts of CPU and memory, you can opt to use your local machine, which simplifies getting to benchmark results. The master needs to be able to reach all workers on their *benchmarkPort* and maintains a streaming connection to collect benchmark results at runtime.
-4. Configure your master with benchmark parameters. See `t-race bench -h` for available parameters. The binary also supports reading a configuration from YAML etc.
+3. Choose a suitable environment to run the t-race master. Since it does only consume small amounts of CPU and memory, you can opt to use your local machine, which simplifies getting to workload results. The master needs to be able to reach all workers on their *benchmarkPort* and maintains a streaming connection to collect workload results at runtime.
+4. Configure your master with workload parameters. See `t-race bench -h` for available parameters. The binary also supports reading a configuration from YAML etc.
 
-### Benchmark Execution
-1. Start benchmark execution with `t-race bench`. The benchmark master should report receiving result packages in regular intervals.
-1. When the configured benchmark duration has passed, you can check results of each worker as *.csv files in the results directory.
-1. Workers keep running after a benchmark, you can re-use them for multiple benchmark runs, BUT: be aware that there may be minor side-effects from previous benchmark runs in the SUT (and I'm not 100% confident that there are no side-effects in t-race itself).
+### Workload Execution
+1. Start workload execution with `t-race bench`. The master should report receiving result packages in regular intervals.
+1. When the configured workload duration has passed, you can check results of each worker as *.csv files in the results directory.
+1. Workers keep running after a workload, you can re-use them for multiple workload runs, BUT: be aware that there may be minor side-effects from previous workload runs in the SUT (and I'm not 100% confident that there are no side-effects in t-race itself).
 
 ### Result Collection
-In total, there are three types of data collected during a benchmark run:
-* Latency measurements from client side (i.e., workers implemented the SUT client libraries) - collected by the benchmark master.
+In total, there are three types of data collected during a workload run:
+* Latency measurements from client side (i.e., workers implemented the SUT client libraries) - collected by the coordinator.
 * Traces, stored in the SUT's backend database.
 * Monitoring data collected from workers (and possibly the SUT), stored by Prometheus.
 
 ## Concepts
-t-race was created with the idea of *monitoring your monitors*. Software is being developed as microservices and deployed into sophisticated, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But how well suited exactly are these tools for specific types of analyses, e.g. root cause analysis vs. real-time monitoring? In a running production setting, it does not make sense to evaluate the quality of observability tooling, as this would lead to a second layer of monitoring - to monitor the monitors. As nested monitoring would be incredibly inefficient, I aimed to create a benchmark, which would enable reasoning about *choices in deployment and configuaration of observability tooling* in an offline setting.
+t-race was created with the idea of *monitoring your monitors*. Software is being developed as microservices and deployed into complex, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But how well suited exactly are these tools for specific types of analyses, e.g. root cause analysis vs. real-time monitoring? In a running production setting, it does not make sense to evaluate the quality of observability tooling, as this would lead to a second layer of monitoring - to monitor the monitors. As nested monitoring would be incredibly inefficient, I aimed to create a workload generator, which enables reasoning about *choices in deployment and configuaration of observability tooling* in an offline setting.
 
-The fundamental idea behind t-race is consequently to create a repeatable and generic benchmark for observability tools. As we want to go beyond testing the backend of observability tools (which probably would come down to test the maximum throughput for writing to a database), we need to emulate services generating observability data in a semi-realistic setting. We do so by *emulating service architectures*, which mimic the complexity of actual, large scale deployments.
+The fundamental idea behind t-race is consequently to create a repeatable and generic workload for observability tools. As we want to go beyond testing the backend of observability tools (which probably would come down to test the maximum throughput for writing to a database), we need to emulate services generating observability data in a semi-realistic setting. We do so by *emulating service architectures*, which mimic the complexity of actual, large scale deployments.
 
 TODO: the following parts might be incomplete!
 
 ### Services and Call Hierachy
-The basic unit of the architecture description used as input to a benchmark is a *service*. Services are an abstraction of a unit of software that has some internal functionality and possibly does synchronous and asynchronous calls to other services. Each service is deployed to an *environment* and sends generated traces to a *sink*. The internal functionality of service is emulated by a delay, which is called *work*. A pair of *work* and a call to another service are each paired into a *unit*.
+The basic unit of the architecture description used as input to a workload is a *service*. Services are an abstraction of a unit of software that has some internal functionality and comprises synchronous and asynchronous calls to other services. Each service is deployed to an *environment* and sends generated traces to a *sink*. The internal functionality of a service is emulated by a delay, which is called *work*. A pair of *work* and a call to another service are each paired into a *unit*.
 
-A service can have multiple *units*, which are executed in order of their appearance. The last property of a service related to its embedding into a call hierarchy is *finalWork*, an additional delay after all calls to *units* have completed. To further illustrate, consider the example below.
+A service can have multiple *units*, which are executed in order of their appearance. To further illustrate, consider the following example.
 
 ```yaml
 services:
   - id: svc01
     envRef: env01
-    sinkRef: backendA
-    finalWork: workB
+    sinkRef: agent1
     units:
-      - work: workA
-        svc: svc02
-	    - work: workA
-	  	  svc: svc03
+      - id: call01A
+        work: work01
+        ratio: 1.0
+        successors: 
+          - svc: svc02
+            unit: call02A
+            sync: true
+          - svc: svc02
+            unit: call02B
+            sync: false
 ```
 
 ### Trace Generation Model
-Trace generation can be split into two parts: the generation of hierachically structured spans, constituting traces (section TODO #ref) and the generation of key-value structured trace context data and baggage (section TODO #ref).
+Trace generation can be split into two parts: the generation of hierachically structured spans, constituting traces (see section TODO #ref) and the generation of key-value structured trace context data and baggage (see section TODO #ref).
 
-t-race generates traces by emulating actual processing, called *work*, and communication between services, which are invoked by *calls*. Work and calls are paired into *Units*. (see also Section on [[Services and Call Hierarchy]])). Each worker emulates a single service, which sequentially processes all units. Work is done at the beggining of each unit, which is why it is referred to as *workBefore*. Calls with workBefore set wait for the previous call to complete. That means, all calls with workBefore set to any value, are *synchronous* calls. If workBefore is not set, we assume the call to the service of a unit to be done *in parallel* to the previous one. To be precise, it executes an async gRPC call to the referenced successive service and proceeds to process the following unit. The following figure visualizes the trace generation sequence.
+t-race generates traces by emulating processing, called *work*, and communication between services, which are invoked by *calls*. Work and calls are paired into *execution units*. (see also Section on [[Services and Call Hierarchy]])). Each worker emulates a service, which can have multiple units. Eeach unit executes work and calls a *successor*, though neither is required. Succesors are references to execution units of other services.
 
+Each execution unit has a property called *ratio* (default value 0.0), which determines the rate at which this unit is generating requests, as if users of an application were directly invoking the modeled function of a service. Ratio serves as a multiplier to the target throughput with which the workload is configured.
+<!--TODO: finish text and update figure!-->
 ![t-race trace generation model](doc/trace-gen-flow.png "Trace generation model of t-race, demonstrating the generated traces for svc01 making two sequential calls to scv02 and svc03")
 
-As shown in this figure, t-race creates a new child span for each remote call, which allows to distinguish between workBefore done locally, emulating some sort of pre-processing, and the duration of the actual call to the remote service.
+As shown in this figure, t-race creates a new child span for each remote call, which allows to distinguish between work done locally, emulating some sort of pre-processing, and the duration of the call to the remote service.
 
 Durations for work can be either hardcoded to static values or sampled from different distributions, with currently normal- and exponential distributions being implemented.
 
-t-race differentiates betwen called services and *root* services. Root services are services without predecessors, i.e. are highest in a tree-like hierarchy. They act as initiators of trace generation, producing traces and calling their successors with the throughput configured by the benchmark. Throughput is equal for all root services.
+Every service generates 
 
-Metadata is in key-value format, with only strings supported for both *tags* and *baggage*. They can be either static values, with strings provided in the architecture description YAML, or random values with given fixed length. Random value trace metadata is generated once during bootstrapping of each worker, i.e. remains the throughout the course of one benchmark.
+Metadata is in key-value format, with only strings supported for both *tags* and *baggage*. They can be either static values, with strings provided in the architecture description YAML, or random values with given fixed length. Random value trace metadata is generated once during bootstrapping of each worker, i.e. remains constant throughout the course of one benchmark.
 
 ## Limitations / Roadmap
 

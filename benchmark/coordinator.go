@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/dominik-/t-race/api"
+	"github.com/dominik-/t-race/executionmodel"
 	"github.com/gocarina/gocsv"
 
 	"google.golang.org/grpc"
@@ -20,7 +21,7 @@ var resultDirFormat = "2006-01-02T150405"
 type Benchmark struct {
 	Name    string
 	Workers []*Worker
-	Config  *BenchmarkConfig
+	Config  *executionmodel.BenchmarkConfig
 }
 
 type Worker struct {
@@ -30,10 +31,10 @@ type Worker struct {
 	ResultStream api.BenchmarkWorker_StartWorkerClient
 }
 
-func Setup(deployment *Model, serviceMap, workerMap, sinkMap map[string]string, config *BenchmarkConfig) *Benchmark {
+func Setup(architecture *executionmodel.Architecture, serviceMap, workerMap, sinkMap map[string]string, config *executionmodel.BenchmarkConfig) *Benchmark {
 	workers := make([]*Worker, 0)
 
-	configs := MapDeploymentToWorkerConfigs(*deployment, *config, sinkMap, serviceMap)
+	configs := executionmodel.MapArchitectureToWorkers(*architecture, *config, sinkMap, serviceMap)
 
 	for id, config := range configs {
 		workers = append(workers, &Worker{
@@ -57,7 +58,7 @@ func Setup(deployment *Model, serviceMap, workerMap, sinkMap map[string]string, 
 		w.Connection = conn
 	}
 	return &Benchmark{
-		Name:    deployment.Name,
+		Name:    architecture.Name,
 		Workers: workers,
 		Config:  config,
 	}
@@ -134,9 +135,9 @@ func WriteResults(worker *Worker, resultDir string, finishedChannel <-chan bool)
 				if err == io.EOF {
 					return
 				}
-				log.Printf("Error receiving result from worker/service %s: %v", worker.Config.OperationName, err)
+				log.Printf("Error receiving result from worker/service %s: %v", worker.Config.ServiceName, err)
 			} else {
-				log.Printf("Received result package from worker/service %s. Size: %d", worker.Config.OperationName, len(resultPackage.GetResults()))
+				log.Printf("Received result package from worker/service %s. Size: %d", worker.Config.ServiceName, len(resultPackage.GetResults()))
 			}
 			if resultPackage != nil {
 				if firstWrite {
@@ -158,17 +159,4 @@ func intToStringArray(array []int64) []string {
 		res[idx] = strconv.FormatInt(val, 10)
 	}
 	return res
-}
-
-func createEnvServicesMap(components []*Service) map[string][]*Service {
-	result := make(map[string][]*Service)
-	for _, c := range components {
-		list, exists := result[c.EnvironmentRef]
-		if !exists {
-			list = make([]*Service, 0)
-			result[c.EnvironmentRef] = list
-		}
-		list = append(list, c)
-	}
-	return result
 }
