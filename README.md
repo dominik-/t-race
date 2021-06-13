@@ -61,11 +61,11 @@ In total, there are three types of data collected during a workload run:
 * Monitoring data collected from workers (and possibly the SUT), stored by Prometheus.
 
 ## Concepts
-t-race was created with the idea of *monitoring your monitors*. Software is being developed as microservices and deployed into complex, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But how well suited exactly are these tools for specific types of analyses, e.g. root cause analysis vs. real-time monitoring? In a running production setting, it does not make sense to evaluate the quality of observability tooling, as this would lead to a second layer of monitoring - to monitor the monitors. As nested monitoring would be incredibly inefficient, I aimed to create a workload generator, which enables reasoning about *choices in deployment and configuaration of observability tooling* in an offline setting.
+t-race was created with the idea of *monitoring your monitors* - on a system-scope. Software is being developed as microservices and deployed into complex, layered virtual environments with a lot of *software infrastructure* (think, e.g., Kubernetes). Monitoring, tracing and logging - in summary observability or telemetry tooling - is an essential part of such software infrastructure. But how well suited exactly are these tools for specific types of analyses, e.g. root cause analysis vs. real-time monitoring? In a running production setting, it does not make sense to evaluate the quality of observability tooling, as this would lead to a second layer of monitoring - to monitor the monitors. As nested monitoring would be incredibly inefficient, I aimed to create a workload generator, which enables reasoning about *choices in deployment and configuaration of observability tooling* in an offline setting.
 
-The fundamental idea behind t-race is consequently to create a repeatable and generic workload for observability tools. As we want to go beyond testing the backend of observability tools (which probably would come down to test the maximum throughput for writing to a database), we need to emulate services generating observability data in a semi-realistic setting. We do so by *emulating service architectures*, which mimic the complexity of actual, large scale deployments.
+The fundamental idea behind t-race is consequently to create a repeatable and generic workload for observability tools. As we want to go beyond testing the backend of observability tools (which probably would come down to test the maximum throughput for writing to a database), we need to emulate services generating observability data in a semi-realistic setting. We do so by *emulating service architectures*, which mimic the complexity of actual, large scale deployments. Thus t-race was created as an approache to generate traces.
 
-TODO: the following parts might be incomplete!
+_NOTE: the following parts might be incomplete!_
 
 ### Services and Call Hierachy
 The basic unit of the architecture description used as input to a workload is a *service*. Services are an abstraction of a unit of software that has some internal functionality and comprises synchronous and asynchronous calls to other services. Each service is deployed to an *environment* and sends generated traces to a *sink*. The internal functionality of a service is emulated by a delay, which is called *work*. A pair of *work* and a call to another service are each paired into a *unit*.
@@ -74,24 +74,24 @@ A service can have multiple *units*, which are executed in order of their appear
 
 ```yaml
 services:
-  - id: svc01
+  - id: ServiceA
     envRef: env01
     sinkRef: agent1
     units:
-      - id: call01A
+      - id: unitA1
         work: work01
         ratio: 1.0
         successors: 
-          - svc: svc02
-            unit: call02A
+          - svc: ServiceB
+            unit: unitB1
             sync: true
-          - svc: svc02
-            unit: call02B
-            sync: false
+          - svc: ServiceC
+            unit: unitC1
+            sync: true
 ```
 
 ### Trace Generation Model
-Trace generation can be split into two parts: the generation of hierachically structured spans, constituting traces (see section TODO #ref) and the generation of key-value structured trace context data and baggage (see section TODO #ref).
+Trace generation can be split into two parts: the generation of hierachically structured spans, constituting traces and the generation of key-value structured trace context data and baggage.
 
 t-race generates traces by emulating processing, called *work*, and communication between services, which are invoked by *calls*. Work and calls are paired into *execution units*. (see also Section on [[Services and Call Hierarchy]])). Each worker emulates a service, which can have multiple units. Eeach unit executes work and calls a *successor*, though neither is required. Succesors are references to execution units of other services.
 
@@ -112,17 +112,19 @@ Metadata is in key-value format, with only strings supported for both *tags* and
 DISCLAIMER: t-race will have some bugs and is not always perfectly intuitive to use, since it started as a single-person research endeavor (and also served as a learning experience of golang).
 
 ### Roadmap
+Integration of more SUT adapters.
 
-An automated aggregation of all relevant, trace- and SUT-related data and configurations.
+Aggregation of all relevant, trace- and SUT-related data and configurations.
 
 More sophisticated analysis of results (some starting points in the [Jupyter Notebook](analysis.ipynb)) and formalization of benchmarking metrics.
 
-Down the road, I plan to integrate different providers' interfaces, automating the deployment of workers. There is a (very basic) `provider` interface conceptualizing this right now, but only the "static" provider is implemented, which means you need to supply worker IPs etc. through a JSON config file and all workers are assumed to see each other on a local network.
+integrate different providers' interfaces, automating the deployment of workers.
 
 ## Useful Stuff / Links
-CQL to CSV export:
+CQL to CSV export to get traces from Cassandra:
 https://docs.datastax.com/en/archived/cql/3.3/cql/cql_reference/cqlshCopy.html
 
+Command to run a CQL-shell via Docker, connecting to the Cassandra DB from the example:
 ```
 docker run -it --network t-race_tracer-backend -v ${PWD}/results:/results --rm cassandra:3.9 cqlsh cassandra
 ```
